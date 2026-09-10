@@ -2,14 +2,9 @@
 
 return [
 
-    'omdb' => [
-        'key' => env('OMDB_API_KEY'),
-        'url' => env('OMDB_API_URL', 'https://www.omdbapi.com/'),
-    ],
-
-    'wikidata' => [
-        'url' => env('WIKIDATA_QUERY_URL', 'https://query.wikidata.org/sparql'),
-        'api_url' => env('WIKIDATA_API_URL', 'https://www.wikidata.org/w/api.php'),
+    'tmdb' => [
+        'token' => env('TMDB_API_TOKEN'),
+        'url' => env('TMDB_API_URL', 'https://api.themoviedb.org/3/'),
     ],
 
     /*

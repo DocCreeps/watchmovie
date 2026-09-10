@@ -1,0 +1,88 @@
+<?php
+
+namespace App\Livewire\Concerns;
+
+use App\Models\WatchlistItem;
+use App\Services\TmdbClient;
+
+/**
+ * Shared behaviour for any page that lists TMDB movies (search results,
+ * upcoming releases): opening the details modal and adding a movie to
+ * the watchlist. $results is the current list shown on the page and is
+ * used as a fallback source when a movie hasn't been fetched from TMDB
+ * individually yet.
+ */
+trait InteractsWithMovies
+{
+    public array $results = [];
+
+    public ?array $selectedMovie = null;
+    public bool $showModal = false;
+
+    /**
+     * Opens the summary modal. An item already in the watchlist has everything stored locally
+     * (no request needed); a movie not yet added is fetched from TMDB (cached, so repeated
+     * clicks are free) with the current $results list as a fallback.
+     */
+    public function showDetails(string $tmdbId, TmdbClient $tmdb): void
+    {
+        $item = WatchlistItem::where('tmdb_id', $tmdbId)->first();
+        if ($item) {
+            $this->selectedMovie = [
+                'title' => $item->title,
+                'year' => $item->year,
+                'poster_url' => $item->poster_url,
+                'director' => $item->director,
+                'actors' => $item->actors,
+                'plot' => $item->plot,
+                'genre' => $item->genre,
+                'runtime' => $item->runtime,
+                'imdb_rating' => $item->imdb_rating,
+            ];
+            $this->showModal = true;
+            return;
+        }
+
+        $fetched = $tmdb->find($tmdbId);
+        $fallback = collect($this->results)->firstWhere('tmdb_id', $tmdbId);
+        if (! $fetched && ! $fallback) {
+            session()->flash('notice', 'Détails indisponibles pour ce film.');
+            return;
+        }
+
+        $this->selectedMovie = [
+            'title' => $fetched['title'] ?? $fallback['title'] ?? '',
+            'year' => $fetched['year'] ?? $fallback['year'] ?? null,
+            'poster_url' => $fetched['poster_url'] ?? $fallback['poster_url'] ?? null,
+            'director' => $fetched['director'] ?? $fallback['director'] ?? null,
+            'actors' => $fetched['actors'] ?? $fallback['actors'] ?? null,
+            'plot' => $fetched['plot'] ?? $fallback['plot'] ?? null,
+            'genre' => $fetched['genre'] ?? null,
+            'runtime' => $fetched['runtime'] ?? null,
+            'imdb_rating' => $fetched['imdb_rating'] ?? null,
+        ];
+        $this->showModal = true;
+    }
+
+    public function closeModal(): void
+    {
+        $this->showModal = false;
+        $this->selectedMovie = null;
+    }
+
+    public function add(string $tmdbId, string $source, TmdbClient $tmdb): void
+    {
+        abort_unless(in_array($source, ['cinema', 'streaming'], true), 422);
+        if (WatchlistItem::where('tmdb_id', $tmdbId)->exists()) {
+            session()->flash('notice', 'Ce film est déjà dans votre liste.');
+            return;
+        }
+        $movie = $tmdb->find($tmdbId) ?? collect($this->results)->firstWhere('tmdb_id', $tmdbId);
+        if (! $movie) {
+            session()->flash('notice', 'Impossible de récupérer ce film.');
+            return;
+        }
+        WatchlistItem::create([...$movie, 'source' => $source]);
+        session()->flash('notice', 'Film ajouté à votre liste.');
+    }
+}
