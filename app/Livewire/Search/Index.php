@@ -13,6 +13,7 @@ class Index extends Component
     public string $queryTitle = '';
     public string $queryDirector = '';
     public string $queryActor = '';
+    public string $queryStudio = '';
 
     /** Which field is actually sent to TMDB; the other filled fields refine the results locally. */
     public string $searchMode = 'title';
@@ -41,6 +42,11 @@ class Index extends Component
         $this->refreshSearch();
     }
 
+    public function updatedQueryStudio(): void
+    {
+        $this->refreshSearch();
+    }
+
     public function updatedMinYear(): void
     {
         if ($this->hasSearched) {
@@ -49,10 +55,10 @@ class Index extends Component
     }
 
     /**
-     * All three fields can be filled at once. One of them (by priority: titre > réalisateur >
-     * acteur) drives the actual TMDB request; the other filled fields are applied afterwards as
-     * local refinements in filteredResults(). Re-evaluated on every keystroke so the field
-     * driving the request can change as the user types.
+     * All four fields can be filled at once. One of them (by priority: titre > réalisateur >
+     * acteur > studio) drives the actual TMDB request; the other filled fields are applied
+     * afterwards as local refinements in filteredResults(). Re-evaluated on every keystroke so
+     * the field driving the request can change as the user types.
      */
     private function refreshSearch(): void
     {
@@ -78,6 +84,7 @@ class Index extends Component
             mb_strlen(trim($this->queryTitle)) >= 2 => 'title',
             mb_strlen(trim($this->queryDirector)) >= 2 => 'director',
             mb_strlen(trim($this->queryActor)) >= 2 => 'actor',
+            mb_strlen(trim($this->queryStudio)) >= 2 => 'studio',
             default => null,
         };
     }
@@ -87,6 +94,7 @@ class Index extends Component
         return match ($this->searchMode) {
             'director' => $this->queryDirector,
             'actor' => $this->queryActor,
+            'studio' => $this->queryStudio,
             default => $this->queryTitle,
         };
     }
@@ -98,6 +106,7 @@ class Index extends Component
         if (mb_strlen(trim($this->queryTitle)) >= 2) $entries['title'] = ['Titre', $this->queryTitle];
         if (mb_strlen(trim($this->queryDirector)) >= 2) $entries['director'] = ['Réalisateur', $this->queryDirector];
         if (mb_strlen(trim($this->queryActor)) >= 2) $entries['actor'] = ['Acteur', $this->queryActor];
+        if (mb_strlen(trim($this->queryStudio)) >= 2) $entries['studio'] = ['Studio', $this->queryStudio];
 
         return $entries;
     }
@@ -149,6 +158,11 @@ class Index extends Component
             $results = $results->filter(fn($m) => str_contains(mb_strtolower($m['actors'] ?? ''), $needle));
         }
 
+        if ($this->searchMode !== 'studio' && mb_strlen(trim($this->queryStudio)) >= 2) {
+            $needle = mb_strtolower(trim($this->queryStudio));
+            $results = $results->filter(fn($m) => str_contains(mb_strtolower($m['studio'] ?? ''), $needle));
+        }
+
         if ($this->searchMode === 'actor' && $this->roleFilter !== 'all') {
             $wantVoice = $this->roleFilter === 'voice';
             $results = $results->filter(fn($m) => (bool) ($m['is_voice'] ?? false) === $wantVoice);
@@ -162,6 +176,7 @@ class Index extends Component
         $this->queryTitle = '';
         $this->queryDirector = '';
         $this->queryActor = '';
+        $this->queryStudio = '';
         $this->results = [];
         $this->hasSearched = false;
         $this->searchError = null;

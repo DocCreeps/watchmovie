@@ -70,9 +70,31 @@ trait InteractsWithMovies
         $this->selectedMovie = null;
     }
 
-    public function add(string $tmdbId, string $source, TmdbClient $tmdb): void
+    /**
+     * Classifies a movie by release date to decide which add-to-list tags to show: not yet
+     * released, or released recently enough to still plausibly be in theaters (within the same
+     * ~2-month window as the Upcoming page), keeps the single "+ Cinéma" tag; anything older
+     * switches to the "Déjà vue" / "+ Streaming" / "Revoir" tags instead.
+     */
+    public function releaseWindow(?string $releaseDate): string
+    {
+        if (blank($releaseDate)) {
+            return 'old';
+        }
+
+        $date = \Illuminate\Support\Carbon::parse($releaseDate);
+
+        if ($date->isFuture()) {
+            return 'upcoming';
+        }
+
+        return $date->diffInDays(now()) <= 60 ? 'in_cinema' : 'old';
+    }
+
+    public function add(string $tmdbId, string $source, string $status = 'to_watch', TmdbClient $tmdb): void
     {
         abort_unless(in_array($source, ['cinema', 'streaming'], true), 422);
+        abort_unless(in_array($status, ['to_watch', 'watched', 'to_rewatch'], true), 422);
         if (WatchlistItem::where('tmdb_id', $tmdbId)->exists()) {
             session()->flash('notice', 'Ce film est déjà dans votre liste.');
             return;
@@ -82,7 +104,14 @@ trait InteractsWithMovies
             session()->flash('notice', 'Impossible de récupérer ce film.');
             return;
         }
-        WatchlistItem::create([...$movie, 'source' => $source]);
+        WatchlistItem::create([
+            ...$movie,
+            'source' => $source,
+            'status' => $status,
+            // "Déjà vue" and "Revoir" are added as already watched, so stamp the
+            // date now; a plain "to watch" add leaves it unset like before.
+            'watched_at' => $status !== 'to_watch' ? now() : null,
+        ]);
         session()->flash('notice', 'Film ajouté à votre liste.');
     }
 }

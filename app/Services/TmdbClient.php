@@ -21,7 +21,7 @@ class TmdbClient
 
         // Bump when the shape/logic of the cached results changes, so stale
         // entries from a previous version of this method never get served.
-        $cacheVersion = 'v2';
+        $cacheVersion = 'v4';
         $cacheKey = 'tmdb.search.' . $cacheVersion . '.' . $mode . '.' . md5(strtolower(trim($query))) . '.y' . ($minYear ?? 'all');
         if ($cached = Cache::get($cacheKey)) {
             return ['results' => $cached, 'error' => null];
@@ -43,6 +43,63 @@ class TmdbClient
                 }
 
                 $movies = collect($response->json('results'));
+            } elseif ($mode === 'studio') {
+                $companyResponse = $this->client()->get('search/company', $this->withAuth([
+                    'query' => trim($query),
+                    'page' => 1,
+                ]));
+
+                if ($companyResponse->failed() || empty($companyResponse->json('results'))) {
+                    return ['results' => [], 'error' => 'Studio non trouvé.'];
+                }
+
+                $companyId = $companyResponse->json('results.0.id');
+
+                // First page tells us how many pages exist; fetch the rest (if any) all at
+                // once via pool instead of one-by-one, since each page is independent.
+                $firstPage = $this->client()->get('discover/movie', $this->withAuth([
+                    'language' => 'fr-FR',
+                    'with_companies' => $companyId,
+                    'sort_by' => 'primary_release_date.desc',
+                    'page' => 1,
+                ]));
+
+                if ($firstPage->failed()) {
+                    Log::warning('TMDB studio discover failed.', ['status' => $firstPage->status(), 'body' => $firstPage->body()]);
+                    return ['results' => [], 'error' => 'Erreur TMDB.'];
+                }
+
+                $firstData = $firstPage->json();
+                $movies = $movies->merge($firstData['results'] ?? []);
+
+                // Capped generously since even prolific studios (Ghibli, Pixar…) fit within a
+                // few pages; a studio with more than this many pages is an edge case not worth
+                // widening the cap for.
+                $maxPages = 10;
+                $totalPages = min($firstData['total_pages'] ?? 1, $maxPages);
+
+                if ($totalPages > 1) {
+                    $extraPages = range(2, $totalPages);
+                    $poolResponses = Http::pool(function (\Illuminate\Http\Client\Pool $pool) use ($extraPages, $companyId) {
+                        return collect($extraPages)->map(
+                            fn($page) =>
+                            $this->authorize($pool->as($page)->acceptJson())
+                                ->get(config('services.tmdb.url') . 'discover/movie', $this->withAuth([
+                                    'language' => 'fr-FR',
+                                    'with_companies' => $companyId,
+                                    'sort_by' => 'primary_release_date.desc',
+                                    'page' => $page,
+                                ]))
+                        )->all();
+                    });
+
+                    foreach ($extraPages as $page) {
+                        $res = $poolResponses[$page] ?? null;
+                        if ($res && $res->ok()) {
+                            $movies = $movies->merge($res->json('results') ?? []);
+                        }
+                    }
+                }
             } else {
                 $personResponse = $this->client()->get('search/person', $this->withAuth([
                     'query' => trim($query),
@@ -82,6 +139,7 @@ class TmdbClient
                     'tmdb_id' => (string) $movie['id'],
                     'title' => $movie['title'],
                     'year' => $year,
+                    'release_date' => $movie['release_date'] ?? null,
                     'poster_url' => isset($movie['poster_path']) ? 'https://image.tmdb.org/t/p/w500' . $movie['poster_path'] : null,
                     'type' => 'movie',
                     'plot' => $movie['overview'] ?? null,
@@ -106,31 +164,52 @@ class TmdbClient
             // actor/director search must be able to return a full filmography.
             $movies = $movies->sortByDesc(fn($m) => $m['year'] ?? -9999)->values();
 
-            // Fetch missing details (director, actors) via pool to show on cards
+            // Fetch missing details (director, actors, studio) to show on cards. Cached per
+            // movie (independent of the per-query cache above and much longer-lived, since a
+            // movie's director/cast/studio never change) so a movie already seen in any past
+            // search — even under a totally different query — is served instantly here instead
+            // of re-hitting TMDB. Only genuine cache misses go through the pool.
             $results = $movies->all();
             if (count($results) > 0) {
-                $poolResponses = Http::pool(function (\Illuminate\Http\Client\Pool $pool) use ($results) {
-                    return collect($results)->map(
-                        fn($m) =>
-                        $this->authorize($pool->as($m['tmdb_id']))
-                            ->get(config('services.tmdb.url') . "movie/{$m['tmdb_id']}", $this->withAuth([
-                                'language' => 'fr-FR',
-                                'append_to_response' => 'credits',
-                            ]))
-                    )->all();
-                });
+                $detailsCacheKey = fn(string $id) => 'tmdb.movie.details.v1.' . $id;
 
-                foreach ($results as &$movie) {
-                    $res = $poolResponses[$movie['tmdb_id']] ?? null;
-                    if ($res && $res->ok()) {
-                        $data = $res->json();
-                        $director = collect($data['credits']['crew'] ?? [])->firstWhere('job', 'Director')['name'] ?? null;
-                        $actors = collect($data['credits']['cast'] ?? [])->take(3)->pluck('name')->implode(', ');
-                        $movie['director'] = $director;
-                        $movie['actors'] = $actors ?: null;
-                        // Use the detailed plot if available
-                        $movie['plot'] = $data['overview'] ?: $movie['plot'];
+                $toFetch = [];
+                foreach ($results as $i => $m) {
+                    $cachedDetails = Cache::get($detailsCacheKey($m['tmdb_id']));
+                    if ($cachedDetails !== null) {
+                        $results[$i] = [...$m, ...$cachedDetails];
+                    } else {
+                        $toFetch[] = $m;
                     }
+                }
+
+                if (count($toFetch) > 0) {
+                    $poolResponses = Http::pool(function (\Illuminate\Http\Client\Pool $pool) use ($toFetch) {
+                        return collect($toFetch)->map(
+                            fn($m) =>
+                            $this->authorize($pool->as($m['tmdb_id']))
+                                ->get(config('services.tmdb.url') . "movie/{$m['tmdb_id']}", $this->withAuth([
+                                    'language' => 'fr-FR',
+                                    'append_to_response' => 'credits',
+                                ]))
+                        )->all();
+                    });
+
+                    foreach ($results as &$movie) {
+                        $res = $poolResponses[$movie['tmdb_id']] ?? null;
+                        if ($res && $res->ok()) {
+                            $data = $res->json();
+                            $details = [
+                                'director' => collect($data['credits']['crew'] ?? [])->firstWhere('job', 'Director')['name'] ?? null,
+                                'actors' => collect($data['credits']['cast'] ?? [])->take(3)->pluck('name')->implode(', ') ?: null,
+                                'studio' => collect($data['production_companies'] ?? [])->pluck('name')->implode(', ') ?: null,
+                                'plot' => $data['overview'] ?: $movie['plot'],
+                            ];
+                            $movie = [...$movie, ...$details];
+                            Cache::put($detailsCacheKey($movie['tmdb_id']), $details, now()->addDays(7));
+                        }
+                    }
+                    unset($movie);
                 }
             }
 
