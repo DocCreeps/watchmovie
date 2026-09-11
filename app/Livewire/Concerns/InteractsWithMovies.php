@@ -21,11 +21,14 @@ trait InteractsWithMovies
 
     /**
      * Opens the summary modal. An item already in the watchlist has everything stored locally
-     * (no request needed); a movie not yet added is fetched from TMDB (cached, so repeated
-     * clicks are free) with the current $results list as a fallback.
+     * (no request needed) except the trailer, which isn't persisted and is always fetched
+     * live (cached a day by TmdbClient, so repeat opens are free either way). A movie not yet
+     * added is fetched from TMDB entirely, with the current $results list as a fallback.
      */
     public function showDetails(string $tmdbId, TmdbClient $tmdb): void
     {
+        $fetched = $tmdb->find($tmdbId);
+
         $item = WatchlistItem::where('tmdb_id', $tmdbId)->first();
         if ($item) {
             $this->selectedMovie = [
@@ -38,12 +41,13 @@ trait InteractsWithMovies
                 'genre' => $item->genre,
                 'runtime' => $item->runtime,
                 'imdb_rating' => $item->imdb_rating,
+                'trailer_key' => $fetched['trailer_key'] ?? null,
+                'trailer_lang' => $fetched['trailer_lang'] ?? null,
             ];
             $this->showModal = true;
             return;
         }
 
-        $fetched = $tmdb->find($tmdbId);
         $fallback = collect($this->results)->firstWhere('tmdb_id', $tmdbId);
         if (! $fetched && ! $fallback) {
             session()->flash('notice', 'Détails indisponibles pour ce film.');
@@ -60,6 +64,8 @@ trait InteractsWithMovies
             'genre' => $fetched['genre'] ?? null,
             'runtime' => $fetched['runtime'] ?? null,
             'imdb_rating' => $fetched['imdb_rating'] ?? null,
+            'trailer_key' => $fetched['trailer_key'] ?? null,
+            'trailer_lang' => $fetched['trailer_lang'] ?? null,
         ];
         $this->showModal = true;
     }

@@ -60,6 +60,27 @@
             @else
             <p class="mt-4 text-sm italic text-zinc-600 border-t border-zinc-800 pt-4">Résumé indisponible.</p>
             @endif
+
+            @if($selectedMovie['trailer_key'] ?? null)
+            <div class="mt-4 border-t border-zinc-800 pt-4">
+                <div class="mb-2 flex items-center justify-between">
+                    <p class="text-sm font-bold text-zinc-400">Bande-annonce</p>
+                    @if($selectedMovie['trailer_lang'] ?? null)
+                    <span class="rounded-full border border-amber-800/50 bg-amber-950/60 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-400">{{ $selectedMovie['trailer_lang'] }}</span>
+                    @endif
+                </div>
+                <div class="aspect-video overflow-hidden rounded-xl bg-black">
+                    <iframe
+                        src="https://www.youtube.com/embed/{{ $selectedMovie['trailer_key'] }}"
+                        title="Bande-annonce de {{ $selectedMovie['title'] }}"
+                        class="h-full w-full"
+                        frameborder="0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowfullscreen
+                    ></iframe>
+                </div>
+            </div>
+            @endif
         </div>
     </div>
 </div>

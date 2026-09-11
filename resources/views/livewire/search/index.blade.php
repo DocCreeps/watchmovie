@@ -33,9 +33,23 @@
                             </svg>
                             <div class="min-w-0 flex-1">
                                 <label for="queryTitle" class="block text-[9px] font-bold uppercase tracking-widest text-zinc-500">Titre</label>
-                                <input id="queryTitle" wire:model.live.debounce.500ms="queryTitle" type="search" placeholder="Ex : Star Wars" autocomplete="off" class="w-full border-0 bg-transparent p-0 text-sm font-medium text-zinc-100 outline-none placeholder:text-zinc-600 focus:ring-0">
+                                <input id="queryTitle" wire:model.live.debounce.500ms="queryTitle" type="search" placeholder="Film à chercher…" autocomplete="off" class="w-full border-0 bg-transparent p-0 text-sm font-medium text-zinc-100 outline-none placeholder:text-zinc-600 focus:ring-0">
                             </div>
                             <svg wire:loading wire:target="queryTitle" class="h-4 w-4 shrink-0 animate-spin text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                <path d="M21 12a9 9 0 1 1-6.22-8.56" />
+                            </svg>
+                        </div>
+
+                        <!-- Search: Director -->
+                        <div class="relative flex items-center gap-2.5 bg-zinc-900/90 px-3.5 py-2.5">
+                            <svg class="h-4 w-4 shrink-0 text-zinc-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="m15 10 4.553-2.276A1 1 0 0 1 21 8.618v6.764a1 1 0 0 1-1.447.894L15 14M5 18h8a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2Z" />
+                            </svg>
+                            <div class="min-w-0 flex-1">
+                                <label for="queryDirector" class="block text-[9px] font-bold uppercase tracking-widest text-zinc-500">Réalisateur</label>
+                                <input id="queryDirector" wire:model.live.debounce.500ms="queryDirector" type="search" placeholder="Nom du réalisateur…" autocomplete="off" class="w-full border-0 bg-transparent p-0 text-sm font-medium text-zinc-100 outline-none placeholder:text-zinc-600 focus:ring-0">
+                            </div>
+                            <svg wire:loading wire:target="queryDirector" class="h-4 w-4 shrink-0 animate-spin text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                                 <path d="M21 12a9 9 0 1 1-6.22-8.56" />
                             </svg>
                         </div>
@@ -48,30 +62,12 @@
                             </svg>
                             <div class="min-w-0 flex-1">
                                 <label for="queryActor" class="block text-[9px] font-bold uppercase tracking-widest text-zinc-500">Acteur</label>
-                                <input id="queryActor" wire:model.live.debounce.500ms="queryActor" type="search" placeholder="Ex : Tom Hanks" autocomplete="off" class="w-full border-0 bg-transparent p-0 text-sm font-medium text-zinc-100 outline-none placeholder:text-zinc-600 focus:ring-0">
+                                <input id="queryActor" wire:model.live.debounce.500ms="queryActor" type="search" placeholder="Nom de l'acteur…" autocomplete="off" class="w-full border-0 bg-transparent p-0 text-sm font-medium text-zinc-100 outline-none placeholder:text-zinc-600 focus:ring-0">
                             </div>
                             <svg wire:loading wire:target="queryActor" class="h-4 w-4 shrink-0 animate-spin text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                                 <path d="M21 12a9 9 0 1 1-6.22-8.56" />
                             </svg>
                         </div>
-
-                         <!-- Search: Director -->
-                         <div class="relative flex items-center gap-2.5 bg-zinc-900/90 px-3.5 py-2.5">
-                             <svg class="h-4 w-4 shrink-0 text-zinc-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                 <path d="m15 10 4.553-2.276A1 1 0 0 1 21 8.618v6.764a1 1 0 0 1-1.447.894L15 14M5 18h8a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2Z" />
-                             </svg>
-                             <div class="min-w-0 flex-1">
-                                 <label for="queryDirector" class="block text-[9px] font-bold uppercase tracking-widest text-zinc-500">Réalisateur</label>
-                                 <input id="queryDirector" wire:model.live.debounce.500ms="queryDirector" type="search" placeholder="Ex: Nolan"
-                                 autocomplete="off" class="w-full border-0 bg-transparent p-0 text-sm font-medium text-zinc-100 outline-none placeholder:text-zinc-600
-                                 focus:ring-0">
-                             </div>
-                             <svg wire:loading wire:target="queryDirector" class="h-4 w-4 shrink-0 animate-spin text-amber-400" viewBox="0 0 24 24"
-                             fill="none" stroke="currentColor" stroke-width="2.5">
-                                 <path d="M21 12a9 9 0 1 1-6.22-8.56" />
-                             </svg>
-                         </div>
-
 
                         <!-- Search: Studio -->
                         <div class="relative flex items-center gap-2.5 bg-zinc-900/90 px-3.5 py-2.5">
@@ -81,7 +77,7 @@
                             </svg>
                             <div class="min-w-0 flex-1">
                                 <label for="queryStudio" class="block text-[9px] font-bold uppercase tracking-widest text-zinc-500">Studio</label>
-                                <input id="queryStudio" wire:model.live.debounce.500ms="queryStudio" type="search" placeholder="Ex : Ghibli" autocomplete="off" class="w-full border-0 bg-transparent p-0 text-sm font-medium text-zinc-100 outline-none placeholder:text-zinc-600 focus:ring-0">
+                                <input id="queryStudio" wire:model.live.debounce.500ms="queryStudio" type="search" placeholder="Ex : Ghibli…" autocomplete="off" class="w-full border-0 bg-transparent p-0 text-sm font-medium text-zinc-100 outline-none placeholder:text-zinc-600 focus:ring-0">
                             </div>
                             <svg wire:loading wire:target="queryStudio" class="h-4 w-4 shrink-0 animate-spin text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                                 <path d="M21 12a9 9 0 1 1-6.22-8.56" />
@@ -96,11 +92,8 @@
                 </div>
 
                 <p x-cloak x-show="showHint" x-transition class="mt-2 text-xs leading-relaxed text-zinc-300 rounded-xl bg-zinc-900/90 p-3.5 border border-zinc-800">
-                    💡 Tapez un titre, un réalisateur, un acteur et/ou un studio (ex : Ghibli, Pixar) — les champs remplis se combinent pour affiner les résultats.
-                    Choisissez ensuite <strong class="text-amber-400">+ Cinéma</strong>, <strong class="text-violet-400">+ Streaming</strong>, <strong class="text-emerald-400">+ Déjà vu</strong> ou <strong class="text-sky-400">+ À revoir</strong>
-                    pour enregistrer le film dans votre liste d'attente.
+                    💡 Tapez un titre, un réalisateur, un acteur et/ou un studio (ex : Ghibli, Pixar) — les champs remplis se combinent pour affiner les résultats. Choisissez ensuite <strong class="text-amber-400">+ Cinéma</strong> ou <strong class="text-violet-400">+ Streaming</strong> pour enregistrer le film dans votre liste d'attente.
                 </p>
-
             </div>
 
             <!-- Min year filter -->
@@ -167,13 +160,20 @@
                     <div class="flex min-w-0 flex-1 flex-col justify-between py-0.5">
                         <div>
                             <h3 class="truncate font-bold text-zinc-100 text-sm group-hover:text-amber-400 transition-colors">{{ $result['title'] }}</h3>
-                            <p class="mt-0.5 text-xs text-zinc-500">{{ $result['year'] ?: '—' }}</p>
+                            <p class="mt-0.5 flex items-center gap-1.5 text-xs text-zinc-500">
+                                <span>{{ $result['year'] ?: '—' }}</span>
+                                @if(!empty($result['imdb_rating']))
+                                <span class="text-zinc-700">·</span>
+                                <span class="font-semibold text-amber-400">★ {{ $result['imdb_rating'] }}</span>
+                                @endif
+                            </p>
                             @if($searchMode === 'studio' && !empty($result['studio']))
                             <p class="mt-1 truncate text-xs text-zinc-400">Par <span class="font-medium text-zinc-300">{{ $result['studio'] }}</span></p>
                             @elseif(!empty($result['director']))
                             <p class="mt-1 truncate text-xs text-zinc-400">De <span class="font-medium text-zinc-300">{{ $result['director'] }}</span></p>
-                            @elseif(!empty($result['actors']))
-                            <p class="mt-1 truncate text-xs text-zinc-400">Avec <span class="font-medium text-zinc-300">{{ $result['actors'] }}</span></p>
+                            @endif
+                            @if(!empty($result['actors']))
+                            <p class="mt-0.5 truncate text-xs text-zinc-400">Avec <span class="font-medium text-zinc-300">{{ $result['actors'] }}</span></p>
                             @endif
                         </div>
                         <div class="mt-2 flex flex-wrap gap-2">

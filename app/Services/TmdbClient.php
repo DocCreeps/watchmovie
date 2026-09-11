@@ -21,7 +21,7 @@ class TmdbClient
 
         // Bump when the shape/logic of the cached results changes, so stale
         // entries from a previous version of this method never get served.
-        $cacheVersion = 'v4';
+        $cacheVersion = 'v5';
         $cacheKey = 'tmdb.search.' . $cacheVersion . '.' . $mode . '.' . md5(strtolower(trim($query))) . '.y' . ($minYear ?? 'all');
         if ($cached = Cache::get($cacheKey)) {
             return ['results' => $cached, 'error' => null];
@@ -143,6 +143,7 @@ class TmdbClient
                     'poster_url' => isset($movie['poster_path']) ? 'https://image.tmdb.org/t/p/w500' . $movie['poster_path'] : null,
                     'type' => 'movie',
                     'plot' => $movie['overview'] ?? null,
+                    'imdb_rating' => !empty($movie['vote_average']) ? round($movie['vote_average'], 1) : null,
                     // TMDB has no clean "dubbing role" flag. Many voice credits do say
                     // so directly ("Woody (voice)", "Narrator (voice)"), but a lot of
                     // community-edited entries omit it — so a credit on a movie tagged
@@ -299,11 +300,11 @@ class TmdbClient
     {
         if (blank(config('services.tmdb.token'))) return null;
 
-        return Cache::remember("tmdb.movie.{$tmdbId}", now()->addDay(), function () use ($tmdbId) {
+        return Cache::remember("tmdb.movie.v2.{$tmdbId}", now()->addDay(), function () use ($tmdbId) {
             try {
                 $response = $this->client()->get("movie/{$tmdbId}", $this->withAuth([
                     'language' => 'fr-FR', // Ensure French
-                    'append_to_response' => 'credits',
+                    'append_to_response' => 'credits,videos',
                 ]));
 
                 if ($response->failed()) return null;
@@ -311,6 +312,17 @@ class TmdbClient
                 $data = $response->json();
                 $director = collect($data['credits']['crew'] ?? [])->firstWhere('job', 'Director')['name'] ?? null;
                 $actors = collect($data['credits']['cast'] ?? [])->take(3)->pluck('name')->implode(', ');
+
+                // The fr-FR request above only returns videos tagged as French; if the movie
+                // has none (common for older or less mainstream films), fall back to a second,
+                // unscoped request to still offer an (original-language) trailer.
+                $trailer = $this->pickTrailer($data['videos']['results'] ?? [], preferFrench: true);
+                if (! $trailer) {
+                    $videosResponse = $this->client()->get("movie/{$tmdbId}/videos", $this->withAuth([]));
+                    if ($videosResponse->ok()) {
+                        $trailer = $this->pickTrailer($videosResponse->json('results') ?? [], preferFrench: false);
+                    }
+                }
 
                 return [
                     'tmdb_id' => (string) $data['id'],
@@ -324,11 +336,42 @@ class TmdbClient
                     'runtime' => isset($data['runtime']) ? $data['runtime'] . ' min' : null,
                     'imdb_rating' => $data['vote_average'] ?? null,
                     'plot' => $data['overview'] ?? null,
+                    'trailer_key' => $trailer['key'] ?? null,
+                    'trailer_lang' => $trailer['lang'] ?? null,
                 ];
             } catch (\Exception $e) {
                 return null;
             }
         });
+    }
+
+    /**
+     * Picks the best trailer from a TMDB videos list: a YouTube "Trailer" (falling back to any
+     * YouTube video if no official trailer exists), preferring French audio when $preferFrench
+     * is true — otherwise just the first match, since this is already the no-French-available
+     * fallback pass.
+     *
+     * @param array<int, array<string, mixed>> $videos
+     * @return array{key: string, lang: string}|null
+     */
+    private function pickTrailer(array $videos, bool $preferFrench): ?array
+    {
+        $videos = collect($videos)->filter(fn($v) => ($v['site'] ?? null) === 'YouTube');
+        if ($videos->isEmpty()) return null;
+
+        $trailers = $videos->filter(fn($v) => ($v['type'] ?? null) === 'Trailer');
+        $pool = $trailers->isNotEmpty() ? $trailers : $videos;
+
+        $pick = $preferFrench
+            ? ($pool->firstWhere('iso_639_1', 'fr') ?? $pool->first())
+            : $pool->first();
+
+        if (! $pick) return null;
+
+        return [
+            'key' => $pick['key'],
+            'lang' => ($pick['iso_639_1'] ?? null) === 'fr' ? 'VF' : 'VO',
+        ];
     }
 
     /**

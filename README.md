@@ -1,58 +1,161 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
-
 <p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
+  <img src="https://img.shields.io/badge/PHP-8.3%2B-777BB4?logo=php&logoColor=white" alt="PHP 8.3+">
+  <img src="https://img.shields.io/badge/Laravel-13-FF2D20?logo=laravel&logoColor=white" alt="Laravel 13">
+  <img src="https://img.shields.io/badge/Livewire-4-4E56A6?logo=livewire&logoColor=white" alt="Livewire 4">
+  <img src="https://img.shields.io/badge/Tailwind_CSS-4-38BDF8?logo=tailwindcss&logoColor=white" alt="Tailwind CSS 4">
+  <img src="https://img.shields.io/badge/DB-SQLite-003B57?logo=sqlite&logoColor=white" alt="SQLite">
+  <img src="https://img.shields.io/badge/Data-TMDB_API-01D277?logo=themoviedatabase&logoColor=white" alt="TMDB API">
+  <img src="https://img.shields.io/badge/Licence-MIT-blue.svg" alt="Licence MIT">
 </p>
 
-## About Laravel
+<h1 align="center">WatchMovie</h1>
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+<p align="center">
+  Une application personnelle de gestion de liste de films à voir, basée sur l'API TMDB.<br>
+  Laravel 13 + Livewire 4 — mono-utilisateur, sans compte, à héberger soi-même.
+</p>
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+---
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+## Sommaire
 
-## Learning Laravel
+- [Fonctionnalités](#fonctionnalités)
+- [Stack technique](#stack-technique)
+- [Prérequis](#prérequis)
+- [Installation](#installation)
+- [Configuration TMDB](#configuration-tmdb)
+- [Routes de l'application](#routes-de-lapplication)
+- [Modèle de données](#modèle-de-données)
+- [Détails techniques](#détails-techniques)
+- [Limites connues](#limites-connues)
+- [Licence](#licence)
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+## Fonctionnalités
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+### 🔎 Recherche (`/recherche`)
+- Recherche de films via l'API TMDB, sur 4 champs combinables : **titre**, **réalisateur**, **acteur** et **studio**.
+- Un champ pilote la requête TMDB (priorité titre > réalisateur > acteur > studio), les autres champs remplis affinent le résultat côté application.
+- Recherche par acteur : distinction rôle **joué** / **doublage**, avec compteur par catégorie.
+- Filtre par année minimale.
+- Chaque résultat affiche l'affiche, l'année, la note TMDB, le réalisateur (ou le studio en mode studio) et les 3 premiers acteurs.
+- Ajout à la liste personnelle directement depuis une carte de résultat, avec un tag adapté à la date de sortie :
+  - **+ Cinéma** si le film n'est pas encore sorti ou l'est depuis moins de 60 jours.
+  - **Déjà vue** / **+ Streaming** / **Revoir** au-delà de ce délai.
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+### 📋 Tableau de bord (`/tableau-de-bord`)
+- Liste personnelle des films ajoutés, filtrable par statut (**à voir**, **déjà vu**, **à revoir**) et par source (**cinéma**, **streaming**).
+- Compteurs par statut/source.
+- Changement de statut et suppression d'un film depuis la liste.
 
-## Agentic Development
+### 🎬 Sorties cinéma (`/a-venir`)
+- Sorties en salle en France sur les deux prochains mois (types de sortie « limitée » et « large » TMDB), regroupées par mois.
 
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+### 🪟 Modale de détails
+- Résumé, genre, durée, note, réalisateur, casting.
+- Bande-annonce YouTube intégrée, en français si disponible (repli automatique en langue originale sinon).
+
+## Stack technique
+
+| Composant | Détail |
+|---|---|
+| Framework | Laravel 13 |
+| Frontend réactif | Livewire 4 (pas de SPA JS séparée) |
+| Styles | Tailwind CSS 4 (via Vite), Alpine.js (fourni par Livewire) |
+| Base de données | SQLite par défaut (`DB_CONNECTION=sqlite`) |
+| Source de données films | [The Movie Database (TMDB)](https://www.themoviedb.org/) — API v3/v4 |
+| Cache | Pilote Laravel configuré (`database` par défaut) — utilisé pour mettre en cache les résultats de recherche et les fiches films |
+
+## Prérequis
+
+- PHP 8.3 ou supérieur
+- Composer
+- Node.js + npm (pour compiler les assets Tailwind avec Vite)
+- Un jeton d'accès à l'API TMDB (gratuit, voir plus bas)
+
+## Installation
 
 ```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+git clone <url-du-dépôt> watchmovie
+cd watchmovie
+composer setup
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+La commande `composer setup` (définie dans `composer.json`) enchaîne :
+1. `composer install`
+2. copie de `.env.example` vers `.env`
+3. `php artisan key:generate`
+4. `php artisan migrate --force`
+5. `npm install` puis `npm run build`
 
-## Contributing
+Il ne reste plus qu'à renseigner le jeton TMDB dans `.env` (voir ci-dessous), puis lancer :
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+```bash
+php artisan serve
+```
 
-## Code of Conduct
+En développement, `composer dev` lance en parallèle le serveur PHP, la queue, les logs (`pail`) et Vite en mode watch.
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+## Configuration TMDB
 
-## Security Vulnerabilities
+L'application ne fonctionne pas sans jeton TMDB. Dans `.env` :
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+```env
+TMDB_API_TOKEN=votre-jeton
+TMDB_API_URL=https://api.themoviedb.org/3/
+```
 
-## License
+Un jeton se récupère gratuitement sur [themoviedb.org](https://www.themoviedb.org/settings/api). Les deux formats TMDB sont supportés :
+- clé API v3 (chaîne de 32 caractères) ;
+- jeton de lecture v4 (JWT) — détecté automatiquement et envoyé en `Bearer`.
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+Si `TMDB_API_TOKEN` est absent, chaque appel à l'API TMDB renvoie une erreur explicite affichée dans l'interface plutôt que de planter.
+
+## Routes de l'application
+
+| Route | Composant Livewire | Description |
+|---|---|---|
+| `/` | `home` | Page d'accueil |
+| `/recherche` | `search.index` | Recherche TMDB et ajout à la liste |
+| `/tableau-de-bord` | `watchlist.dashboard` | Liste personnelle |
+| `/a-venir` | `upcoming.index` | Sorties cinéma à venir |
+
+Aucune authentification n'est mise en place : l'application est prévue pour un usage personnel, en local ou sur un hébergement privé.
+
+## Modèle de données
+
+Table unique `watchlist_items` :
+
+| Champ | Type | Détail |
+|---|---|---|
+| `tmdb_id` | string, unique | Identifiant TMDB du film |
+| `title`, `year`, `poster_url`, `genre`, `runtime`, `plot`, `imdb_rating` | — | Métadonnées récupérées depuis TMDB au moment de l'ajout |
+| `director`, `actors` | string | Réalisateur, 3 premiers acteurs |
+| `status` | string | `to_watch`, `watched` ou `to_rewatch` |
+| `source` | string | `cinema` ou `streaming` |
+| `watched_at` | datetime, nullable | Renseigné automatiquement au passage en « déjà vu » ou « à revoir » |
+| `priority`, `note` | — | Colonnes présentes en base (tri par priorité sur le tableau de bord) mais **non éditables** depuis l'interface actuelle |
+
+## Détails techniques
+
+- **Recherche multi-champs** : selon le champ principal, l'application interroge `search/movie`, `search/person` (+ `movie_credits`) ou `search/company` (+ `discover/movie`), puis enrichit chaque résultat (réalisateur, casting, studio) via un pool de requêtes HTTP concurrentes (`Http::pool`).
+- **Double niveau de cache** :
+  - un cache par recherche (requête + mode + année minimale), 6 heures ;
+  - un cache par film (réalisateur/casting/studio), 7 jours, partagé entre toutes les recherches — un film déjà rencontré dans une recherche précédente n'est jamais re-téléchargé.
+- **Pagination studio parallélisée** : la première page détermine le nombre total de pages, les pages suivantes sont récupérées en une seule vague via `Http::pool` plutôt qu'en séquence.
+- **Bande-annonce** : récupérée via `append_to_response=credits,videos` sur l'endpoint `movie/{id}`, avec repli sur un second appel non filtré par langue si aucune vidéo française n'existe.
+
+## Limites connues
+
+- Films uniquement (pas de séries TV).
+- Mono-utilisateur, sans compte ni partage de liste.
+- Champs `priority` et `note` présents en base mais sans interface pour les modifier.
+- Pas de suite de tests dédiée à l'application (seuls les tests d'exemple par défaut de Laravel sont présents).
+- Pas d'intégration continue configurée.
+
+## Licence
+
+Projet sous licence MIT (voir `composer.json`).
+
+---
+
+<sub>Ce produit utilise l'API TMDB mais n'est ni approuvé ni certifié par TMDB.</sub>
