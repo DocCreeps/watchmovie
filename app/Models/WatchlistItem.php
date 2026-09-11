@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class WatchlistItem extends Model
 {
-    protected $fillable = ['tmdb_id', 'title', 'year', 'poster_url', 'type', 'genre', 'director', 'actors', 'runtime', 'imdb_rating', 'plot', 'status', 'source', 'priority', 'note', 'watched_at'];
+    protected $fillable = ['tmdb_id', 'title', 'year', 'poster_url', 'type', 'genre', 'director', 'actors', 'studio', 'runtime', 'imdb_rating', 'plot', 'status', 'source', 'priority', 'note', 'personal_rating', 'watched_at'];
 
     protected function casts(): array
     {

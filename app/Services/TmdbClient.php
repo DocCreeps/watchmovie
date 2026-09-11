@@ -300,7 +300,7 @@ class TmdbClient
     {
         if (blank(config('services.tmdb.token'))) return null;
 
-        return Cache::remember("tmdb.movie.v2.{$tmdbId}", now()->addDay(), function () use ($tmdbId) {
+        return Cache::remember("tmdb.movie.v3.{$tmdbId}", now()->addDay(), function () use ($tmdbId) {
             try {
                 $response = $this->client()->get("movie/{$tmdbId}", $this->withAuth([
                     'language' => 'fr-FR', // Ensure French
@@ -312,6 +312,7 @@ class TmdbClient
                 $data = $response->json();
                 $director = collect($data['credits']['crew'] ?? [])->firstWhere('job', 'Director')['name'] ?? null;
                 $actors = collect($data['credits']['cast'] ?? [])->take(3)->pluck('name')->implode(', ');
+                $studio = collect($data['production_companies'] ?? [])->pluck('name')->implode(', ');
 
                 // The fr-FR request above only returns videos tagged as French; if the movie
                 // has none (common for older or less mainstream films), fall back to a second,
@@ -328,19 +329,93 @@ class TmdbClient
                     'tmdb_id' => (string) $data['id'],
                     'title' => $data['title'] ?? $data['original_title'],
                     'year' => isset($data['release_date']) ? (int) substr($data['release_date'], 0, 4) : null,
+                    'release_date' => $data['release_date'] ?? null,
                     'poster_url' => isset($data['poster_path']) ? 'https://image.tmdb.org/t/p/w500' . $data['poster_path'] : null,
                     'type' => 'movie',
                     'genre' => collect($data['genres'] ?? [])->pluck('name')->implode(', '),
                     'director' => $director,
                     'actors' => $actors ?: null,
+                    'studio' => $studio ?: null,
                     'runtime' => isset($data['runtime']) ? $data['runtime'] . ' min' : null,
                     'imdb_rating' => $data['vote_average'] ?? null,
                     'plot' => $data['overview'] ?? null,
                     'trailer_key' => $trailer['key'] ?? null,
                     'trailer_lang' => $trailer['lang'] ?? null,
+                    'collection_id' => $data['belongs_to_collection']['id'] ?? null,
+                    'collection_name' => $data['belongs_to_collection']['name'] ?? null,
                 ];
             } catch (\Exception $e) {
                 return null;
+            }
+        });
+    }
+
+    /**
+     * Up to 6 recommended movies for a given film (TMDB's "recommendations" endpoint, which
+     * tends to be more relevant than "similar"), for the "Films similaires" strip in the
+     * details modal. Cached for 3 days since recommendations barely change day to day.
+     *
+     * @return array<int, array{tmdb_id: string, title: string, year: ?int, poster_url: ?string}>
+     */
+    public function similarFilms(string $tmdbId): array
+    {
+        if (blank(config('services.tmdb.token'))) return [];
+
+        return Cache::remember("tmdb.movie.similar.v1.{$tmdbId}", now()->addDays(3), function () use ($tmdbId) {
+            try {
+                $response = $this->client()->get("movie/{$tmdbId}/recommendations", $this->withAuth([
+                    'language' => 'fr-FR',
+                    'page' => 1,
+                ]));
+
+                if ($response->failed()) return [];
+
+                return collect($response->json('results', []))
+                    ->filter(fn($m) => !empty($m['id']) && !empty($m['title']))
+                    ->take(6)
+                    ->map(fn($m) => [
+                        'tmdb_id' => (string) $m['id'],
+                        'title' => $m['title'],
+                        'year' => isset($m['release_date']) && $m['release_date'] ? (int) substr($m['release_date'], 0, 4) : null,
+                        'poster_url' => isset($m['poster_path']) ? 'https://image.tmdb.org/t/p/w200' . $m['poster_path'] : null,
+                    ])
+                    ->values()
+                    ->all();
+            } catch (\Exception $e) {
+                return [];
+            }
+        });
+    }
+
+    /**
+     * All films in a TMDB "collection" (a saga: e.g. Star Wars, Toy Story), for the
+     * "+ Ajouter toute la saga" action. Cached for 3 days.
+     *
+     * @return array<int, array{tmdb_id: string, title: string, release_date: ?string}>
+     */
+    public function collectionFilms(int $collectionId): array
+    {
+        if (blank(config('services.tmdb.token'))) return [];
+
+        return Cache::remember("tmdb.collection.v1.{$collectionId}", now()->addDays(3), function () use ($collectionId) {
+            try {
+                $response = $this->client()->get("collection/{$collectionId}", $this->withAuth([
+                    'language' => 'fr-FR',
+                ]));
+
+                if ($response->failed()) return [];
+
+                return collect($response->json('parts', []))
+                    ->filter(fn($m) => !empty($m['id']) && !empty($m['title']))
+                    ->map(fn($m) => [
+                        'tmdb_id' => (string) $m['id'],
+                        'title' => $m['title'],
+                        'release_date' => $m['release_date'] ?? null,
+                    ])
+                    ->values()
+                    ->all();
+            } catch (\Exception $e) {
+                return [];
             }
         });
     }

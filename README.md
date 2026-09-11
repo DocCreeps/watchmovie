@@ -5,7 +5,6 @@
   <img src="https://img.shields.io/badge/Tailwind_CSS-4-38BDF8?logo=tailwindcss&logoColor=white" alt="Tailwind CSS 4">
   <img src="https://img.shields.io/badge/DB-SQLite-003B57?logo=sqlite&logoColor=white" alt="SQLite">
   <img src="https://img.shields.io/badge/Data-TMDB_API-01D277?logo=themoviedatabase&logoColor=white" alt="TMDB API">
-  <img src="https://img.shields.io/badge/Licence-MIT-blue.svg" alt="Licence MIT">
 </p>
 
 <h1 align="center">WatchMovie</h1>
@@ -41,11 +40,18 @@
 - Ajout à la liste personnelle directement depuis une carte de résultat, avec un tag adapté à la date de sortie :
   - **+ Cinéma** si le film n'est pas encore sorti ou l'est depuis moins de 60 jours.
   - **Déjà vue** / **+ Streaming** / **Revoir** au-delà de ce délai.
+- Depuis la modale de détails, ajout en un clic de **toute une saga TMDB** (ex. Star Wars, Toy Story) non encore présente dans la liste, chaque film étant classé cinéma/streaming selon sa propre date de sortie.
 
 ### 📋 Tableau de bord (`/tableau-de-bord`)
-- Liste personnelle des films ajoutés, filtrable par statut (**à voir**, **déjà vu**, **à revoir**) et par source (**cinéma**, **streaming**).
+- Liste personnelle des films ajoutés, filtrable par statut (**à voir**, **déjà vu**, **à revoir**, filtres cumulables) et par source (**cinéma**, **streaming**).
+- Filtres additionnels par genre, réalisateur et studio (listes déroulantes, valeurs déduites de la liste).
+- Tri au choix : priorité, ajout récent, année, note TMDB, alphabétique.
 - Compteurs par statut/source.
+- Priorité (Haute/Moyenne/Basse) réglable par film.
+- Notation personnelle par étoiles (1 à 5), disponible une fois le film marqué comme vu ou à revoir ; cliquer à nouveau sur l'étoile déjà sélectionnée efface la note.
 - Changement de statut et suppression d'un film depuis la liste.
+- Bouton **🎲 Surprends-moi** : ouvre la fiche d'un film "à voir" pris au hasard dans la liste.
+- Les films marqués **déjà vus** sont retirés de la grille principale et regroupés dans une section repliable "Déjà vus" (masquée par défaut) ; ils réapparaissent dans la grille normale si on les sélectionne explicitement via le filtre de statut.
 
 ### 🎬 Sorties cinéma (`/a-venir`)
 - Sorties en salle en France sur les deux prochains mois (types de sortie « limitée » et « large » TMDB), regroupées par mois.
@@ -53,6 +59,8 @@
 ### 🪟 Modale de détails
 - Résumé, genre, durée, note, réalisateur, casting.
 - Bande-annonce YouTube intégrée, en français si disponible (repli automatique en langue originale sinon).
+- Films similaires suggérés (recommandations TMDB).
+- Si le film appartient à une saga TMDB, proposition d'ajouter toute la collection en un clic.
 
 ## Stack technique
 
@@ -128,12 +136,14 @@ Table unique `watchlist_items` :
 | Champ | Type | Détail |
 |---|---|---|
 | `tmdb_id` | string, unique | Identifiant TMDB du film |
-| `title`, `year`, `poster_url`, `genre`, `runtime`, `plot`, `imdb_rating` | — | Métadonnées récupérées depuis TMDB au moment de l'ajout |
-| `director`, `actors` | string | Réalisateur, 3 premiers acteurs |
+| `title`, `year`, `poster_url`, `type`, `genre`, `runtime`, `plot`, `imdb_rating` | — | Métadonnées récupérées depuis TMDB au moment de l'ajout |
+| `director`, `actors`, `studio` | string | Réalisateur, 3 premiers acteurs, studio(s)/société(s) de production (liste séparée par des virgules) |
 | `status` | string | `to_watch`, `watched` ou `to_rewatch` |
 | `source` | string | `cinema` ou `streaming` |
 | `watched_at` | datetime, nullable | Renseigné automatiquement au passage en « déjà vu » ou « à revoir » |
-| `priority`, `note` | — | Colonnes présentes en base (tri par priorité sur le tableau de bord) mais **non éditables** depuis l'interface actuelle |
+| `priority` | integer | 1 (haute) à 3 (basse), réglable depuis le tableau de bord — pilote le tri par défaut |
+| `note` | string, nullable | Champ libre présent en base, sans interface dédiée pour l'instant |
+| `personal_rating` | integer, nullable | Note personnelle 1 à 5, réglable par étoiles une fois le film vu ou à revoir |
 
 ## Détails techniques
 
@@ -143,18 +153,15 @@ Table unique `watchlist_items` :
   - un cache par film (réalisateur/casting/studio), 7 jours, partagé entre toutes les recherches — un film déjà rencontré dans une recherche précédente n'est jamais re-téléchargé.
 - **Pagination studio parallélisée** : la première page détermine le nombre total de pages, les pages suivantes sont récupérées en une seule vague via `Http::pool` plutôt qu'en séquence.
 - **Bande-annonce** : récupérée via `append_to_response=credits,videos` sur l'endpoint `movie/{id}`, avec repli sur un second appel non filtré par langue si aucune vidéo française n'existe.
+- **Films similaires & sagas** : les recommandations TMDB (`movie/{id}/recommendations`, 6 films max) sont mises en cache 3 jours ; l'ajout d'une saga entière (`collection/{id}`) est également mis en cache 3 jours et ignore les films déjà présents dans la liste.
 
 ## Limites connues
 
 - Films uniquement (pas de séries TV).
 - Mono-utilisateur, sans compte ni partage de liste.
-- Champs `priority` et `note` présents en base mais sans interface pour les modifier.
+- Champ `note` (texte libre) présent en base mais sans interface pour le modifier.
 - Pas de suite de tests dédiée à l'application (seuls les tests d'exemple par défaut de Laravel sont présents).
 - Pas d'intégration continue configurée.
-
-## Licence
-
-Projet sous licence MIT (voir `composer.json`).
 
 ---
 

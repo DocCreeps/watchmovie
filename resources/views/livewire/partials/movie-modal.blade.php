@@ -81,6 +81,36 @@
                 </div>
             </div>
             @endif
+            @if($selectedMovie['collection'] ?? null)
+            <div class="mt-4 flex items-center justify-between gap-3 rounded-xl border border-amber-800/40 bg-amber-950/30 px-4 py-3">
+                <p class="text-xs text-amber-300">
+                    Fait partie de la saga <span class="font-bold">{{ $selectedMovie['collection']['name'] }}</span>
+                </p>
+                <button wire:click="addCollection({{ $selectedMovie['collection']['id'] }})" wire:confirm="Ajouter tous les films de cette saga qui ne sont pas déjà dans votre liste ?" class="shrink-0 rounded-lg bg-amber-500 px-3 py-1.5 text-[11px] font-bold text-zinc-950 transition hover:bg-amber-400">
+                    + Toute la saga
+                </button>
+            </div>
+            @endif
+
+            @if(!empty($selectedMovie['similar']))
+            <div class="mt-4 border-t border-zinc-800 pt-4">
+                <p class="mb-2 text-sm font-bold text-zinc-400">Films similaires</p>
+                <div class="flex gap-2.5 overflow-x-auto pb-1">
+                    @foreach($selectedMovie['similar'] as $movie)
+                    <button wire:click="showDetails('{{ $movie['tmdb_id'] }}')" class="group w-16 shrink-0 text-left">
+                        <div class="aspect-[2/3] w-16 overflow-hidden rounded-lg bg-zinc-950">
+                            @if($movie['poster_url'])
+                            <img src="{{ $movie['poster_url'] }}" alt="" class="h-full w-full object-cover transition group-hover:scale-105">
+                            @else
+                            <div class="grid h-full w-full place-items-center text-[9px] text-zinc-700">N/A</div>
+                            @endif
+                        </div>
+                        <p class="mt-1 line-clamp-2 text-[10px] leading-tight text-zinc-400 group-hover:text-amber-400">{{ $movie['title'] }}</p>
+                    </button>
+                    @endforeach
+                </div>
+            </div>
+            @endif
         </div>
     </div>
 </div>

@@ -21,13 +21,18 @@ trait InteractsWithMovies
 
     /**
      * Opens the summary modal. An item already in the watchlist has everything stored locally
-     * (no request needed) except the trailer, which isn't persisted and is always fetched
-     * live (cached a day by TmdbClient, so repeat opens are free either way). A movie not yet
-     * added is fetched from TMDB entirely, with the current $results list as a fallback.
+     * (no request needed) except the trailer/similar-films/collection info, which aren't
+     * persisted and are always fetched live (each cached by TmdbClient, so repeat opens are
+     * free either way). A movie not yet added is fetched from TMDB entirely, with the current
+     * $results list as a fallback.
      */
     public function showDetails(string $tmdbId, TmdbClient $tmdb): void
     {
         $fetched = $tmdb->find($tmdbId);
+        $similar = $fetched ? $tmdb->similarFilms($tmdbId) : [];
+        $collection = ($fetched && !empty($fetched['collection_id']))
+            ? ['id' => $fetched['collection_id'], 'name' => $fetched['collection_name']]
+            : null;
 
         $item = WatchlistItem::where('tmdb_id', $tmdbId)->first();
         if ($item) {
@@ -43,6 +48,8 @@ trait InteractsWithMovies
                 'imdb_rating' => $item->imdb_rating,
                 'trailer_key' => $fetched['trailer_key'] ?? null,
                 'trailer_lang' => $fetched['trailer_lang'] ?? null,
+                'similar' => $similar,
+                'collection' => $collection,
             ];
             $this->showModal = true;
             return;
@@ -66,6 +73,8 @@ trait InteractsWithMovies
             'imdb_rating' => $fetched['imdb_rating'] ?? null,
             'trailer_key' => $fetched['trailer_key'] ?? null,
             'trailer_lang' => $fetched['trailer_lang'] ?? null,
+            'similar' => $similar,
+            'collection' => $collection,
         ];
         $this->showModal = true;
     }
@@ -119,5 +128,45 @@ trait InteractsWithMovies
             'watched_at' => $status !== 'to_watch' ? now() : null,
         ]);
         session()->flash('notice', 'Film ajouté à votre liste.');
+    }
+
+    /**
+     * Adds every not-yet-added film in a TMDB collection (a saga) to the watchlist in one go,
+     * each tagged "cinéma" or "streaming" per its own release date like a normal single add.
+     */
+    public function addCollection(int $collectionId, TmdbClient $tmdb): void
+    {
+        $parts = $tmdb->collectionFilms($collectionId);
+        if (empty($parts)) {
+            session()->flash('notice', 'Impossible de récupérer cette saga.');
+            return;
+        }
+
+        $added = 0;
+        foreach ($parts as $part) {
+            if (WatchlistItem::where('tmdb_id', $part['tmdb_id'])->exists()) {
+                continue;
+            }
+
+            $movie = $tmdb->find($part['tmdb_id']);
+            if (! $movie) {
+                continue;
+            }
+
+            $window = $this->releaseWindow($movie['release_date'] ?? $part['release_date'] ?? null);
+
+            WatchlistItem::create([
+                ...$movie,
+                'source' => in_array($window, ['upcoming', 'in_cinema'], true) ? 'cinema' : 'streaming',
+                'status' => 'to_watch',
+                'watched_at' => null,
+            ]);
+            $added++;
+        }
+
+        session()->flash('notice', $added > 0
+            ? $added . ' film' . ($added > 1 ? 's' : '') . ' de la saga ajouté' . ($added > 1 ? 's' : '') . ' à votre liste.'
+            : 'Tous les films de cette saga sont déjà dans votre liste.');
+        $this->closeModal();
     }
 }
