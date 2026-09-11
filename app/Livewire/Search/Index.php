@@ -3,6 +3,7 @@
 namespace App\Livewire\Search;
 
 use App\Livewire\Concerns\InteractsWithMovies;
+use App\Models\WatchlistItem;
 use App\Services\TmdbClient;
 use Livewire\Component;
 
@@ -199,11 +200,17 @@ class Index extends Component
             ];
         }
 
+        // Films already on this page that are already in the watchlist (any status),
+        // so the view can grey the card out and swap the add buttons for a status badge.
+        $inList = WatchlistItem::whereIn('tmdb_id', collect($pageResults)->pluck('tmdb_id'))
+            ->pluck('status', 'tmdb_id');
+
         return [
             'pageResults' => $pageResults,
             'resultsTotal' => count($filtered),
             'totalPages' => $totalPages,
             'roleCounts' => $roleCounts,
+            'inList' => $inList,
         ];
     }
 }

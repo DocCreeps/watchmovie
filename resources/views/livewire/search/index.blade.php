@@ -1,4 +1,4 @@
-<main class="min-h-screen">
+<main>
     <div class="mx-auto max-w-7xl px-4 pb-10 sm:px-8 lg:px-12 lg:pb-14">
 
         <!-- Hero / Search Section -->
@@ -149,7 +149,8 @@
             @elseif ($resultsTotal)
             <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 @foreach ($pageResults as $result)
-                <article wire:key="result-{{ $result['tmdb_id'] }}" class="group relative flex gap-3.5 rounded-2xl border border-zinc-800 bg-zinc-900/80 p-3 shadow-lg transition hover:border-amber-500/50 hover:bg-zinc-900">
+                @php $inListStatus = $inList[$result['tmdb_id']] ?? null; @endphp
+                <article wire:key="result-{{ $result['tmdb_id'] }}" @class(['group relative flex gap-3.5 rounded-2xl border p-3 shadow-lg transition', 'border-zinc-800/60 bg-zinc-900/40 opacity-50 grayscale hover:opacity-75 hover:grayscale-0' => $inListStatus, 'border-zinc-800 bg-zinc-900/80 hover:border-amber-500/50 hover:bg-zinc-900' => !$inListStatus])>
                     <button wire:click="showDetails('{{ $result['tmdb_id'] }}')" class="relative h-24 w-16 shrink-0 cursor-pointer overflow-hidden rounded-xl bg-zinc-950 focus:outline-none" aria-label="Détails de {{ $result['title'] }}">
                         @if($result['poster_url'])
                         <img src="{{ $result['poster_url'] }}" alt="" class="h-full w-full object-cover transition duration-300 group-hover:scale-105">
@@ -177,6 +178,21 @@
                             @endif
                         </div>
                         <div class="mt-2 flex flex-wrap gap-2">
+                            @if($inListStatus)
+                            @php
+                                $statusLabel = match($inListStatus) {
+                                    'watched' => '✓ Déjà vue',
+                                    'to_rewatch' => '↺ À revoir',
+                                    default => '○ Déjà dans la liste',
+                                };
+                                $statusClass = match($inListStatus) {
+                                    'watched' => 'bg-emerald-950/60 border-emerald-800/50 text-emerald-400',
+                                    'to_rewatch' => 'bg-sky-950/60 border-sky-800/50 text-sky-400',
+                                    default => 'bg-amber-950/60 border-amber-800/50 text-amber-400',
+                                };
+                            @endphp
+                            <span class="rounded-lg border px-2.5 py-1 text-[11px] font-bold {{ $statusClass }}">{{ $statusLabel }}</span>
+                            @else
                             @php $window = $this->releaseWindow($result['release_date'] ?? null); @endphp
                             @if($window === 'upcoming' || $window === 'in_cinema')
                             <button wire:click="add('{{ $result['tmdb_id'] }}', 'cinema')" class="rounded-lg bg-amber-950/80 border border-amber-800/60 px-2.5 py-1 text-[11px] font-bold text-amber-400 transition hover:bg-amber-900 hover:text-white">+ Cinéma</button>
@@ -184,6 +200,7 @@
                             <button wire:click="add('{{ $result['tmdb_id'] }}', 'streaming', 'watched')" class="rounded-lg bg-zinc-800/80 border border-zinc-700/60 px-2.5 py-1 text-[11px] font-bold text-zinc-300 transition hover:bg-zinc-700 hover:text-white">Déjà vue</button>
                             <button wire:click="add('{{ $result['tmdb_id'] }}', 'streaming')" class="rounded-lg bg-violet-950/80 border border-violet-800/60 px-2.5 py-1 text-[11px] font-bold text-violet-300 transition hover:bg-violet-900 hover:text-white">+ Streaming</button>
                             <button wire:click="add('{{ $result['tmdb_id'] }}', 'streaming', 'to_rewatch')" class="rounded-lg bg-sky-950/80 border border-sky-800/60 px-2.5 py-1 text-[11px] font-bold text-sky-300 transition hover:bg-sky-900 hover:text-white">Revoir</button>
+                            @endif
                             @endif
                         </div>
                     </div>
