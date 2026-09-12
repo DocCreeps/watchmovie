@@ -1,6 +1,6 @@
 @if ($showModal && $selectedMovie)
-<div x-data="{ openProvider: null }" x-on:keydown.escape.window="$wire.closeModal()" class="fixed inset-0 z-50 overflow-y-auto bg-black/80 px-4 py-8 backdrop-blur-md transition-opacity" wire:click.self="closeModal">
-    <div class="grid min-h-full place-items-center">
+<div x-data="{ openProvider: null }" x-on:keydown.escape.window="$wire.closeModal()" class="fixed inset-0 z-50 overflow-y-auto bg-black/80 px-4 py-8 backdrop-blur-md transition-opacity">
+    <div class="grid min-h-full place-items-center" wire:click.self="closeModal">
         <div class="relative flex w-full max-w-5xl flex-col overflow-hidden rounded-3xl bg-zinc-900 border border-zinc-800 shadow-2xl sm:flex-row" wire:click.stop>
             <button wire:click="closeModal" class="absolute right-3 top-3 z-20 grid h-8 w-8 place-items-center rounded-full bg-black/60 text-zinc-400 backdrop-blur-md transition hover:bg-black hover:text-white" aria-label="Fermer">✕</button>
 
@@ -124,17 +124,35 @@
                 </div>
                 @endif
 
-                @if(isset($selectedMovie['item_id']))
+                @if(isset($selectedMovie['item_id']) && in_array($selectedMovie['status'] ?? null, ['watched', 'to_rewatch'], true))
+                <div class="mt-4 border-t border-zinc-800 pt-4">
+                    <p class="mb-1.5 text-xs font-bold text-zinc-400">Votre note</p>
+                    <div class="flex items-center gap-1" role="group" aria-label="Votre note">
+                        @for ($star = 1; $star <= 5; $star++)
+                        <button wire:click="setPersonalRating({{ $selectedMovie['item_id'] }}, {{ $star }})" title="Noter {{ $star }}/5" class="text-xl leading-none transition {{ $star <= ($selectedMovie['personal_rating'] ?? 0) ? 'text-amber-400' : 'text-zinc-700 hover:text-zinc-500' }}">★</button>
+                        @endfor
+                    </div>
+                </div>
+                @endif
+
                 <div class="mt-4 border-t border-zinc-800 pt-4">
                     <label for="watchlist-note" class="mb-1 block text-xs font-bold text-zinc-400">Votre note personnelle</label>
+                    @if(isset($selectedMovie['item_id']))
                     <div class="flex gap-2">
                         <textarea id="watchlist-note" wire:model.blur="selectedMovie.note" rows="1" placeholder="Une remarque, un souvenir…" class="min-w-0 flex-1 resize-none rounded-xl border border-zinc-800 bg-zinc-950/80 px-3 py-2 text-xs text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/50">{{ $selectedMovie['note'] }}</textarea>
                         <button wire:click="saveNote" class="shrink-0 rounded-lg bg-zinc-800 px-3 py-1.5 text-[10px] font-bold text-zinc-200 transition hover:bg-zinc-700">
                             Enregistrer
                         </button>
                     </div>
+                    @else
+                    <div class="flex gap-2">
+                        <textarea rows="1" disabled placeholder="Ajoutez ce film à votre liste pour pouvoir écrire une note…" class="min-w-0 flex-1 cursor-not-allowed resize-none rounded-xl border border-zinc-800 bg-zinc-950/40 px-3 py-2 text-xs text-zinc-600 outline-none placeholder:text-zinc-600"></textarea>
+                        <button type="button" disabled class="shrink-0 cursor-not-allowed rounded-lg bg-zinc-800/50 px-3 py-1.5 text-[10px] font-bold text-zinc-600">
+                            Enregistrer
+                        </button>
+                    </div>
+                    @endif
                 </div>
-                @endif
 
                 @if(!empty($selectedMovie['similar']))
                 <div class="mt-4 min-w-0 border-t border-zinc-800 pt-4" x-data="{

@@ -8,15 +8,16 @@ use Livewire\Component;
 class Index extends Component
 {
     /**
-     * "Watched" here means any film with a `watched_at` timestamp (status watched or
-     * to_rewatch both qualify, since both were seen at least once). Loading them all is fine:
-     * unlike the dashboard's full table, this set only ever grows with actual viewing habits,
-     * and every aggregate below (genre/director breakdown, monthly grouping) needs the full
-     * set in memory since genres/directors aren't normalized columns.
+     * "Vus" (watched) and "à revoir" (to_rewatch) are kept as two separate sets: both have a
+     * `watched_at` timestamp since both were seen at least once, but a film marked "à revoir"
+     * isn't a completed watch for stats purposes — it shouldn't inflate the "films vus" count,
+     * genre/director breakdowns, average rating, or the main history timeline. It gets its own
+     * count and its own timeline section instead.
      */
     public function with(): array
     {
-        $watched = WatchlistItem::query()->whereNotNull('watched_at')->get();
+        $watched = WatchlistItem::query()->whereNotNull('watched_at')->where('status', 'watched')->get();
+        $toRewatch = WatchlistItem::query()->whereNotNull('watched_at')->where('status', 'to_rewatch')->get();
 
         $genreCounts = $watched->pluck('genre')
             ->flatMap(fn($g) => array_map('trim', explode(',', (string) $g)))
@@ -33,9 +34,13 @@ class Index extends Component
         $timeline = $watched->sortByDesc('watched_at')
             ->groupBy(fn($item) => ucfirst($item->watched_at->translatedFormat('F Y')));
 
+        $toRewatchTimeline = $toRewatch->sortByDesc('watched_at')
+            ->groupBy(fn($item) => ucfirst($item->watched_at->translatedFormat('F Y')));
+
         return [
             'totalWatched' => $watched->count(),
             'watchedThisYear' => $watchedThisYear->count(),
+            'toRewatchCount' => $toRewatch->count(),
             'averageRating' => $rated->isNotEmpty() ? round((float) $rated->avg('personal_rating'), 1) : null,
             'topGenre' => $genreCounts->keys()->first(),
             'topGenreCount' => $genreCounts->first(),
@@ -44,6 +49,7 @@ class Index extends Component
             'cinemaCount' => $watched->where('source', 'cinema')->count(),
             'streamingCount' => $watched->where('source', 'streaming')->count(),
             'timeline' => $timeline,
+            'toRewatchTimeline' => $toRewatchTimeline,
         ];
     }
 }

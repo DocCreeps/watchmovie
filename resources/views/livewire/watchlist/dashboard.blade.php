@@ -153,11 +153,31 @@
                 @endif
             </button>
         </div>
-        <div class="mt-3 grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            @foreach ($items as $item)
-            @include('livewire.partials.movie-card', ['item' => $item])
-            @endforeach
+        @if($toWatchItems->isNotEmpty())
+        <div class="mt-6">
+            <h2 class="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-amber-400">
+                ○ À voir <span class="font-normal normal-case tracking-normal text-zinc-500">({{ $toWatchItems->count() }})</span>
+            </h2>
+            <div class="mt-3 grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                @foreach ($toWatchItems as $item)
+                @include('livewire.partials.movie-card', ['item' => $item])
+                @endforeach
+            </div>
         </div>
+        @endif
+
+        @if($toRewatchItems->isNotEmpty())
+        <div class="mt-10">
+            <h2 class="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-sky-400">
+                ↺ À revoir <span class="font-normal normal-case tracking-normal text-zinc-500">({{ $toRewatchItems->count() }})</span>
+            </h2>
+            <div class="mt-3 grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                @foreach ($toRewatchItems as $item)
+                @include('livewire.partials.movie-card', ['item' => $item])
+                @endforeach
+            </div>
+        </div>
+        @endif
         @endif
 
         <!-- Already-watched films: tucked away in a collapsible section instead of cluttering the main grid -->

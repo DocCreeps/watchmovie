@@ -157,14 +157,6 @@ class Dashboard extends Component
         WatchlistItem::findOrFail($id)->update(['priority' => $priority]);
     }
 
-    public function setPersonalRating(int $id, int $rating): void
-    {
-        abort_unless(in_array($rating, [1, 2, 3, 4, 5], true), 422);
-        $item = WatchlistItem::findOrFail($id);
-        // Clicking the currently-set star again clears the rating, like a toggle.
-        $item->update(['personal_rating' => $item->personal_rating === $rating ? null : $rating]);
-    }
-
     public function remove(int $id): void
     {
         WatchlistItem::findOrFail($id)->delete();
@@ -205,6 +197,12 @@ class Dashboard extends Component
             $items = $items->reject(fn($item) => $item->status === 'watched')->values();
         }
 
+        // The main grid is further split into two clearly separated sections — "à voir"
+        // and "à revoir" — instead of mixing both statuses together. Order is preserved
+        // from the sort applied above.
+        $toWatchItems = $items->where('status', 'to_watch')->values();
+        $toRewatchItems = $items->where('status', 'to_rewatch')->values();
+
         // Counted with grouped SQL queries rather than loading every row into memory
         // (`WatchlistItem::all()`), so this stays cheap even once the list grows large.
         $statusCounts = WatchlistItem::query()->selectRaw('status, count(*) as total')->groupBy('status')->pluck('total', 'status');
@@ -217,6 +215,8 @@ class Dashboard extends Component
 
         return [
             'items' => $items,
+            'toWatchItems' => $toWatchItems,
+            'toRewatchItems' => $toRewatchItems,
             'watchedItems' => $watchedItems,
             'counts' => [
                 'all' => $statusCounts->sum(),

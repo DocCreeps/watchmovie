@@ -56,6 +56,8 @@ trait InteractsWithMovies
                 // show the free-text "note" field, which otherwise has no interface.
                 'item_id' => $item->id,
                 'note' => $item->note,
+                'status' => $item->status,
+                'personal_rating' => $item->personal_rating,
             ];
             $this->showModal = true;
             return;
@@ -82,8 +84,32 @@ trait InteractsWithMovies
             'similar' => $similar,
             'collection' => $collection,
             'watch_providers' => $providers,
+            // Pas encore dans la watchlist : pas d'id, pas de note enregistrée. Le champ
+            // note reste affiché dans la modale mais désactivé tant que le film n'est pas ajouté.
+            'item_id' => null,
+            'note' => null,
+            'status' => null,
+            'personal_rating' => null,
         ];
         $this->showModal = true;
+    }
+
+    /**
+     * 1-5 star personal rating, toggle-off if the same star is clicked again. Lives in this
+     * shared trait (not just Dashboard) so the rating widget also works from the details modal,
+     * which is included on the search, upcoming, and home pages too.
+     */
+    public function setPersonalRating(int $id, int $rating): void
+    {
+        abort_unless(in_array($rating, [1, 2, 3, 4, 5], true), 422);
+        $item = WatchlistItem::findOrFail($id);
+        $newRating = $item->personal_rating === $rating ? null : $rating;
+        $item->update(['personal_rating' => $newRating]);
+
+        // Keep the open modal in sync if it's showing this same film.
+        if ($this->selectedMovie && ($this->selectedMovie['item_id'] ?? null) === $id) {
+            $this->selectedMovie['personal_rating'] = $newRating;
+        }
     }
 
     public function closeModal(): void
@@ -142,7 +168,6 @@ trait InteractsWithMovies
         return $date->diffInDays(now()) <= 60 ? 'in_cinema' : 'old';
     }
 
-    
     public function add(TmdbClient $tmdb, string $tmdbId, string $source, string $status = 'to_watch'): void
     {
         abort_unless(in_array($source, ['cinema', 'streaming'], true), 422);
