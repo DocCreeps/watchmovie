@@ -16,7 +16,7 @@ class Home extends Component
         // Grouped SQL counts rather than loading every row, same as the dashboard.
         $statusCounts = WatchlistItem::query()->selectRaw('status, count(*) as total')->groupBy('status')->pluck('total', 'status');
 
-        $recentlyAdded = WatchlistItem::query()->latest()->limit(6)->get();
+        $toWatch = WatchlistItem::query()->where('status', 'to_watch')->orderBy('priority')->latest()->limit(6)->get();
 
         // Cinema films still "to watch", cross-referenced against TMDB's upcoming releases
         // (same window as the /a-venir page) so only ones with a confirmed date show up.
@@ -41,7 +41,7 @@ class Home extends Component
                 'watched' => (int) $statusCounts->get('watched', 0),
                 'to_rewatch' => (int) $statusCounts->get('to_rewatch', 0),
             ],
-            'recentlyAdded' => $recentlyAdded,
+            'toWatch' => $toWatch,
             'upcomingInWatchlist' => $upcomingInWatchlist,
         ];
     }
