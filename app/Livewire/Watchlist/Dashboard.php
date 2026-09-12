@@ -4,7 +4,6 @@ namespace App\Livewire\Watchlist;
 
 use App\Livewire\Concerns\InteractsWithMovies;
 use App\Models\WatchlistItem;
-use App\Services\TmdbClient;
 use Livewire\Component;
 
 class Dashboard extends Component
@@ -27,9 +26,76 @@ class Dashboard extends Component
     /** Whether the "already watched" section is expanded (collapsed/hidden by default). */
     public bool $showWatched = false;
 
+    /** Optional release-year bounds, same idea as the search page's minYear. */
+    public ?int $minYear = null;
+    public ?int $maxYear = null;
+
+    /** Matches title or personal note (case-insensitive substring). */
+    public string $searchQuery = '';
+
+    /** When true, restricts the grid to "to watch" films added more than 3 months ago. */
+    public bool $staleOnly = false;
+
+    /** @var array<int, int> IDs currently checked in the grid, for the bulk-action toolbar. */
+    public array $selectedIds = [];
+
     public function toggleShowWatched(): void
     {
         $this->showWatched = ! $this->showWatched;
+    }
+
+    public function toggleStale(): void
+    {
+        $this->staleOnly = ! $this->staleOnly;
+    }
+
+    public function toggleSelect(int $id): void
+    {
+        $this->selectedIds = in_array($id, $this->selectedIds, true)
+            ? array_values(array_diff($this->selectedIds, [$id]))
+            : [...$this->selectedIds, $id];
+    }
+
+    /**
+     * Adds every currently-displayed film to the selection (called with the visible IDs from
+     * the view). Acts as a toggle: if every visible film is already selected, it deselects
+     * them instead, so the button can also be used to clear the current view's selection.
+     */
+    public function selectAllVisible(int ...$ids): void
+    {
+        $allVisibleAlreadySelected = ! empty($ids) && empty(array_diff($ids, $this->selectedIds));
+
+        $this->selectedIds = $allVisibleAlreadySelected
+            ? array_values(array_diff($this->selectedIds, $ids))
+            : array_values(array_unique([...$this->selectedIds, ...$ids]));
+    }
+
+    public function clearSelection(): void
+    {
+        $this->selectedIds = [];
+    }
+
+    /** Applies the same watched-date logic as setStatus() to every selected film. */
+    public function bulkSetStatus(string $status): void
+    {
+        abort_unless(in_array($status, ['to_watch', 'watched', 'to_rewatch'], true), 422);
+        foreach ($this->selectedIds as $id) {
+            $this->setStatus($id, $status);
+        }
+        $this->clearSelection();
+    }
+
+    public function bulkSetPriority(int $priority): void
+    {
+        abort_unless(in_array($priority, [1, 2, 3], true), 422);
+        WatchlistItem::whereIn('id', $this->selectedIds)->update(['priority' => $priority]);
+        $this->clearSelection();
+    }
+
+    public function bulkRemove(): void
+    {
+        WatchlistItem::whereIn('id', $this->selectedIds)->delete();
+        $this->clearSelection();
     }
 
     public function toggleStatusFilter(string $status): void
@@ -104,17 +170,6 @@ class Dashboard extends Component
         WatchlistItem::findOrFail($id)->delete();
     }
 
-    /** Opens a random "to watch" film's details modal, to help pick something to watch. */
-    public function surpriseMe(TmdbClient $tmdb): void
-    {
-        $item = WatchlistItem::where('status', 'to_watch')->inRandomOrder()->first();
-        if (! $item) {
-            session()->flash('notice', 'Aucun film "à voir" dans votre liste pour le moment.');
-            return;
-        }
-        $this->showDetails($item->tmdb_id, $tmdb);
-    }
-
     public function with(): array
     {
         $query = WatchlistItem::query()
@@ -122,7 +177,14 @@ class Dashboard extends Component
             ->when(!empty($this->sourceFilter), fn($q) => $q->whereIn('source', $this->sourceFilter))
             ->when($this->genreFilter !== '', fn($q) => $q->where('genre', 'like', '%' . $this->genreFilter . '%'))
             ->when($this->directorFilter !== '', fn($q) => $q->where('director', $this->directorFilter))
-            ->when($this->studioFilter !== '', fn($q) => $q->where('studio', 'like', '%' . $this->studioFilter . '%'));
+            ->when($this->studioFilter !== '', fn($q) => $q->where('studio', 'like', '%' . $this->studioFilter . '%'))
+            ->when($this->minYear !== null, fn($q) => $q->where('year', '>=', $this->minYear))
+            ->when($this->maxYear !== null, fn($q) => $q->where('year', '<=', $this->maxYear))
+            ->when($this->searchQuery !== '', fn($q) => $q->where(
+                fn($qq) => $qq->where('title', 'like', '%' . $this->searchQuery . '%')
+                    ->orWhere('note', 'like', '%' . $this->searchQuery . '%')
+            ))
+            ->when($this->staleOnly, fn($q) => $q->where('status', 'to_watch')->where('created_at', '<=', now()->subMonths(3)));
 
         match ($this->sortBy) {
             'added_desc' => $query->latest(),
@@ -133,7 +195,6 @@ class Dashboard extends Component
         };
 
         $items = $query->get();
-        $all = WatchlistItem::all();
 
         // By default, "watched" films are pulled out of the main grid and tucked into a
         // separate, collapsible section below — unless the user explicitly filtered for
@@ -144,23 +205,34 @@ class Dashboard extends Component
             $items = $items->reject(fn($item) => $item->status === 'watched')->values();
         }
 
+        // Counted with grouped SQL queries rather than loading every row into memory
+        // (`WatchlistItem::all()`), so this stays cheap even once the list grows large.
+        $statusCounts = WatchlistItem::query()->selectRaw('status, count(*) as total')->groupBy('status')->pluck('total', 'status');
+        $sourceCounts = WatchlistItem::query()->selectRaw('source, count(*) as total')->groupBy('source')->pluck('total', 'source');
+        $staleCount = WatchlistItem::query()->where('status', 'to_watch')->where('created_at', '<=', now()->subMonths(3))->count();
+
+        // Only the three columns the filter dropdowns actually need, instead of hydrating
+        // full WatchlistItem models (poster, plot, etc.) for every row just to list values.
+        $filterFields = WatchlistItem::query()->select(['genre', 'director', 'studio'])->get();
+
         return [
             'items' => $items,
             'watchedItems' => $watchedItems,
             'counts' => [
-                'all' => $all->count(),
-                'to_watch' => $all->where('status', 'to_watch')->count(),
-                'watched' => $all->where('status', 'watched')->count(),
-                'to_rewatch' => $all->where('status', 'to_rewatch')->count(),
-                'cinema' => $all->where('source', 'cinema')->count(),
-                'streaming' => $all->where('source', 'streaming')->count(),
+                'all' => $statusCounts->sum(),
+                'to_watch' => (int) $statusCounts->get('to_watch', 0),
+                'watched' => (int) $statusCounts->get('watched', 0),
+                'to_rewatch' => (int) $statusCounts->get('to_rewatch', 0),
+                'cinema' => (int) $sourceCounts->get('cinema', 0),
+                'streaming' => (int) $sourceCounts->get('streaming', 0),
+                'stale' => $staleCount,
             ],
             // Distinct values across the whole list (not the filtered set), for the filter
             // dropdowns. `genre` and `studio` are stored as comma-separated lists, so they're
             // exploded first; `director` is a single value already.
-            'genreOptions' => $all->pluck('genre')->flatMap(fn($g) => array_map('trim', explode(',', (string) $g)))->filter()->unique()->sort()->values(),
-            'directorOptions' => $all->pluck('director')->filter()->unique()->sort()->values(),
-            'studioOptions' => $all->pluck('studio')->flatMap(fn($s) => array_map('trim', explode(',', (string) $s)))->filter()->unique()->sort()->values(),
+            'genreOptions' => $filterFields->pluck('genre')->flatMap(fn($g) => array_map('trim', explode(',', (string) $g)))->filter()->unique()->sort()->values(),
+            'directorOptions' => $filterFields->pluck('director')->filter()->unique()->sort()->values(),
+            'studioOptions' => $filterFields->pluck('studio')->flatMap(fn($s) => array_map('trim', explode(',', (string) $s)))->filter()->unique()->sort()->values(),
         ];
     }
 }

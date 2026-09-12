@@ -92,6 +92,54 @@
             </div>
             @endif
 
+            @if(!empty($selectedMovie['watch_providers']) && (!empty($selectedMovie['watch_providers']['flatrate']) || !empty($selectedMovie['watch_providers']['rent']) || !empty($selectedMovie['watch_providers']['buy'])))
+            <div class="mt-4 border-t border-zinc-800 pt-4">
+                <p class="mb-2 text-sm font-bold text-zinc-400">Où regarder (France)</p>
+
+                @foreach ([
+                    ['key' => 'flatrate', 'label' => 'Abonnement', 'color' => 'text-emerald-500/80'],
+                    ['key' => 'rent', 'label' => 'Location', 'color' => 'text-sky-500/80'],
+                    ['key' => 'buy', 'label' => 'Achat', 'color' => 'text-zinc-500'],
+                ] as $group)
+                @if(!empty($selectedMovie['watch_providers'][$group['key']]))
+                <div class="mb-2 last:mb-0">
+                    <p class="mb-1 text-[10px] font-bold uppercase tracking-widest {{ $group['color'] }}">{{ $group['label'] }}</p>
+                    <div class="flex flex-wrap gap-2">
+                        @foreach($selectedMovie['watch_providers'][$group['key']] as $provider)
+                        <span class="flex items-center gap-1.5 rounded-lg bg-zinc-800/80 px-2 py-1 text-[11px] font-semibold text-zinc-200">
+                            @if($provider['logo_url'])
+                            <img src="{{ $provider['logo_url'] }}" alt="" class="h-4 w-4 rounded">
+                            @endif
+                            {{ $provider['name'] }}
+                        </span>
+                        @endforeach
+                    </div>
+                </div>
+                @endif
+                @endforeach
+
+                <p class="mt-2 text-[10px] text-zinc-600">Données fournies par JustWatch.</p>
+            </div>
+            @endif
+
+            @if(isset($selectedMovie['item_id']))
+            <div class="mt-4 border-t border-zinc-800 pt-4">
+                <label for="watchlist-note" class="mb-2 block text-sm font-bold text-zinc-400">Votre note personnelle</label>
+                <textarea
+                    id="watchlist-note"
+                    wire:model.blur="selectedMovie.note"
+                    rows="3"
+                    placeholder="Une remarque, un souvenir, une raison de le (re)voir…"
+                    class="w-full resize-none rounded-xl border border-zinc-800 bg-zinc-950/80 px-3 py-2 text-sm text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/50"
+                >{{ $selectedMovie['note'] }}</textarea>
+                <div class="mt-2 flex justify-end">
+                    <button wire:click="saveNote" class="rounded-lg bg-zinc-800 px-3 py-1.5 text-[11px] font-bold text-zinc-200 transition hover:bg-zinc-700">
+                        Enregistrer la note
+                    </button>
+                </div>
+            </div>
+            @endif
+
             @if(!empty($selectedMovie['similar']))
             <div class="mt-4 border-t border-zinc-800 pt-4">
                 <p class="mb-2 text-sm font-bold text-zinc-400">Films similaires</p>

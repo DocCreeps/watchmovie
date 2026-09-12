@@ -10,8 +10,12 @@
         </div>
         @endif
 
-        <!-- Badges Overlay -->
-        <div class="absolute inset-x-0 top-0 flex items-center justify-between p-3 bg-gradient-to-b from-black/80 via-black/40 to-transparent">
+        <!-- Badges Overlay: left-padded to leave room for the selection checkbox pinned at the same corner,
+             but only while that checkbox is actually visible (hover/focus, or the film is already
+             selected) — otherwise the date badge stays flush left. -->
+        <div @class([ 'absolute inset-x-0 top-0 flex items-center justify-between gap-2 py-3 pr-3 bg-gradient-to-b from-black/80 via-black/40 to-transparent transition-[padding]' , 'pl-11'=> in_array($item->id, $selectedIds ?? []),
+            'pl-3 group-hover:pl-11 group-focus-within:pl-11' => !in_array($item->id, $selectedIds ?? []),
+            ])>
             <span class="rounded-lg bg-black/60 backdrop-blur-md px-2 py-1 text-[11px] font-bold text-zinc-300 border border-white/10">
                 {{ $item->year ?: '—' }}
             </span>
@@ -22,6 +26,13 @@
             @endif
         </div>
     </button>
+
+    <!-- Selection checkbox, for the bulk-action toolbar: stays subtle until hovered/checked so it doesn't compete with the year badge -->
+    <label @class([ 'absolute left-2 top-2 z-20 grid h-7 w-7 cursor-pointer place-items-center rounded-md border border-white/20 bg-black/70 backdrop-blur-md transition-opacity' , 'opacity-100'=> in_array($item->id, $selectedIds ?? []),
+        'opacity-0 group-hover:opacity-100 focus-within:opacity-100' => !in_array($item->id, $selectedIds ?? []),
+        ]) title="Sélectionner">
+        <input type="checkbox" wire:click="toggleSelect({{ $item->id }})" @checked(in_array($item->id, $selectedIds ?? [])) class="h-4 w-4 accent-amber-500">
+    </label>
 
     <!-- Movie Info -->
     <div class="flex flex-1 flex-col justify-between p-4">
@@ -39,7 +50,7 @@
             <!-- Priority -->
             <div class="mt-2 flex items-center gap-1" role="group" aria-label="Priorité">
                 @foreach (['1' => 'Haute', '2' => 'Moyenne', '3' => 'Basse'] as $level => $label)
-                <button wire:click="setPriority({{ $item->id }}, {{ $level }})" title="Priorité {{ $label }}" @class(['rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide transition', 'bg-amber-950/80 text-amber-400 border border-amber-800/50' => (int) $item->priority === (int) $level, 'text-zinc-600 border border-transparent hover:text-zinc-300 hover:bg-zinc-800/60' => (int) $item->priority !== (int) $level])>
+                <button wire:click="setPriority({{ $item->id }}, {{ $level }})" title="Priorité {{ $label }}" @class(['rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide transition', 'bg-amber-950/80 text-amber-400 border border-amber-800/50'=> (int) $item->priority === (int) $level, 'text-zinc-600 border border-transparent hover:text-zinc-300 hover:bg-zinc-800/60' => (int) $item->priority !== (int) $level])>
                     {{ $label }}
                 </button>
                 @endforeach
@@ -48,9 +59,8 @@
             <!-- Personal rating: only meaningful once the film has actually been seen -->
             @if(in_array($item->status, ['watched', 'to_rewatch'], true))
             <div class="mt-2 flex items-center gap-0.5" role="group" aria-label="Votre note">
-                @for ($star = 1; $star <= 5; $star++)
-                <button wire:click="setPersonalRating({{ $item->id }}, {{ $star }})" title="Noter {{ $star }}/5" class="text-sm leading-none transition {{ $star <= ($item->personal_rating ?? 0) ? 'text-amber-400' : 'text-zinc-700 hover:text-zinc-500' }}">★</button>
-                @endfor
+                @for ($star = 1; $star <= 5; $star++) <button wire:click="setPersonalRating({{ $item->id }}, {{ $star }})" title="Noter {{ $star }}/5" class="text-sm leading-none transition {{ $star <= ($item->personal_rating ?? 0) ? 'text-amber-400' : 'text-zinc-700 hover:text-zinc-500' }}">★</button>
+                    @endfor
             </div>
             @endif
         </div>

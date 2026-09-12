@@ -30,6 +30,7 @@ trait InteractsWithMovies
     {
         $fetched = $tmdb->find($tmdbId);
         $similar = $fetched ? $tmdb->similarFilms($tmdbId) : [];
+        $providers = $tmdb->watchProviders($tmdbId);
         $collection = ($fetched && !empty($fetched['collection_id']))
             ? ['id' => $fetched['collection_id'], 'name' => $fetched['collection_name']]
             : null;
@@ -50,6 +51,11 @@ trait InteractsWithMovies
                 'trailer_lang' => $fetched['trailer_lang'] ?? null,
                 'similar' => $similar,
                 'collection' => $collection,
+                'watch_providers' => $providers,
+                // Only present for films already in the watchlist — used by the modal to
+                // show the free-text "note" field, which otherwise has no interface.
+                'item_id' => $item->id,
+                'note' => $item->note,
             ];
             $this->showModal = true;
             return;
@@ -75,6 +81,7 @@ trait InteractsWithMovies
             'trailer_lang' => $fetched['trailer_lang'] ?? null,
             'similar' => $similar,
             'collection' => $collection,
+            'watch_providers' => $providers,
         ];
         $this->showModal = true;
     }
@@ -83,6 +90,35 @@ trait InteractsWithMovies
     {
         $this->showModal = false;
         $this->selectedMovie = null;
+    }
+
+    /**
+     * Persists the free-text "note" field from the details modal. Only reachable for a film
+     * already in the watchlist, since `$selectedMovie['item_id']` is set solely in that case.
+     */
+    public function saveNote(): void
+    {
+        if (! $this->selectedMovie || empty($this->selectedMovie['item_id'])) {
+            return;
+        }
+
+        $note = trim((string) ($this->selectedMovie['note'] ?? ''));
+        $item = WatchlistItem::findOrFail($this->selectedMovie['item_id']);
+        $item->update(['note' => $note !== '' ? $note : null]);
+        $this->selectedMovie['note'] = $item->note;
+
+        session()->flash('notice', 'Note enregistrée.');
+    }
+
+    /** Opens a random "to watch" film's details modal, to help pick something to watch. */
+    public function surpriseMe(TmdbClient $tmdb): void
+    {
+        $item = WatchlistItem::where('status', 'to_watch')->inRandomOrder()->first();
+        if (! $item) {
+            session()->flash('notice', 'Aucun film "à voir" dans votre liste pour le moment.');
+            return;
+        }
+        $this->showDetails($item->tmdb_id, $tmdb);
     }
 
     /**

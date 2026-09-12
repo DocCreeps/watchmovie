@@ -37,6 +37,11 @@
                 <button wire:click="toggleStatusFilter('to_rewatch')" @class(['rounded-xl px-3.5 py-1.5 text-xs font-bold transition', 'bg-sky-600 text-white shadow-lg shadow-sky-950/40'=> in_array('to_rewatch', $statusFilter, true), 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/60' => !in_array('to_rewatch', $statusFilter, true)])>
                     À revoir <span class="ml-1 opacity-70">({{ $counts['to_rewatch'] }})</span>
                 </button>
+                @if($counts['stale'] > 0)
+                <button wire:click="toggleStale" @class(['rounded-xl px-3.5 py-1.5 text-xs font-bold transition', 'bg-orange-600 text-white shadow-lg shadow-orange-950/40'=> $staleOnly, 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/60' => !$staleOnly]) title="Films « à voir » ajoutés il y a plus de 3 mois">
+                    🕸️ Oubliés <span class="ml-1 opacity-80">({{ $counts['stale'] }})</span>
+                </button>
+                @endif
             </div>
 
             <div class="h-px sm:h-5 sm:w-px bg-zinc-800"></div>
@@ -55,7 +60,7 @@
             </div>
         </div>
 
-        <!-- Genre / director / studio filters + sort -->
+        <!-- Genre / director / studio / year / text filters + sort -->
         <div class="mt-3 flex flex-wrap items-center gap-2.5">
             <select wire:model.live="genreFilter" class="rounded-lg border border-zinc-800 bg-zinc-900 px-2.5 py-1.5 text-xs font-semibold text-zinc-300 focus:border-amber-500/50 focus:outline-none focus:ring-0">
                 <option value="">Tous les genres</option>
@@ -75,6 +80,9 @@
                 <option value="{{ $studio }}">{{ $studio }}</option>
                 @endforeach
             </select>
+            <input type="number" wire:model.live.debounce.400ms="minYear" placeholder="Année min" class="w-24 rounded-lg border border-zinc-800 bg-zinc-900 px-2.5 py-1.5 text-xs font-semibold text-zinc-300 outline-none placeholder:text-zinc-600 focus:border-amber-500/50 focus:ring-0">
+            <input type="number" wire:model.live.debounce.400ms="maxYear" placeholder="Année max" class="w-24 rounded-lg border border-zinc-800 bg-zinc-900 px-2.5 py-1.5 text-xs font-semibold text-zinc-300 outline-none placeholder:text-zinc-600 focus:border-amber-500/50 focus:ring-0">
+            <input type="search" wire:model.live.debounce.300ms="searchQuery" placeholder="Titre ou note…" class="w-40 rounded-lg border border-zinc-800 bg-zinc-900 px-2.5 py-1.5 text-xs font-semibold text-zinc-300 outline-none placeholder:text-zinc-600 focus:border-amber-500/50 focus:ring-0">
 
             <div class="ml-auto flex items-center gap-2">
                 <span class="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Trier</span>
@@ -87,6 +95,24 @@
                 </select>
             </div>
         </div>
+
+        <!-- Bulk action toolbar: appears once at least one film is checked in the grid -->
+        @if(!empty($selectedIds))
+        <div class="mt-3 flex flex-wrap items-center gap-2 rounded-2xl border border-amber-800/40 bg-amber-950/20 p-3">
+            <span class="text-xs font-bold text-amber-300">{{ count($selectedIds) }} sélectionné{{ count($selectedIds) > 1 ? 's' : '' }}</span>
+            <button wire:click="clearSelection" class="text-xs font-semibold text-zinc-400 transition hover:text-zinc-100">Désélectionner</button>
+            <span class="h-4 w-px bg-zinc-700"></span>
+            <button wire:click="bulkSetStatus('to_watch')" class="rounded-lg bg-zinc-800 px-2.5 py-1 text-[11px] font-bold text-zinc-200 transition hover:bg-zinc-700">○ À voir</button>
+            <button wire:click="bulkSetStatus('watched')" class="rounded-lg bg-emerald-900/60 px-2.5 py-1 text-[11px] font-bold text-emerald-300 transition hover:bg-emerald-800/60">✓ Vu</button>
+            <button wire:click="bulkSetStatus('to_rewatch')" class="rounded-lg bg-sky-900/60 px-2.5 py-1 text-[11px] font-bold text-sky-300 transition hover:bg-sky-800/60">↺ À revoir</button>
+            <span class="h-4 w-px bg-zinc-700"></span>
+            <button wire:click="bulkSetPriority(1)" class="rounded-lg bg-amber-950/80 px-2.5 py-1 text-[11px] font-bold text-amber-400 transition hover:bg-amber-900">Priorité haute</button>
+            <button wire:click="bulkSetPriority(2)" class="rounded-lg bg-zinc-800 px-2.5 py-1 text-[11px] font-bold text-zinc-300 transition hover:bg-zinc-700">Priorité moyenne</button>
+            <button wire:click="bulkSetPriority(3)" class="rounded-lg bg-zinc-800 px-2.5 py-1 text-[11px] font-bold text-zinc-300 transition hover:bg-zinc-700">Priorité basse</button>
+            <span class="h-4 w-px bg-zinc-700"></span>
+            <button wire:click="bulkRemove" wire:confirm="Retirer {{ count($selectedIds) }} film(s) de votre liste ?" class="rounded-lg bg-red-950/60 px-2.5 py-1 text-[11px] font-bold text-red-400 transition hover:bg-red-900/60">🗑️ Supprimer</button>
+        </div>
+        @endif
 
         <!-- Movie Grid or Empty State -->
         @if ($items->isEmpty())
@@ -113,7 +139,21 @@
             @endif
         </div>
         @else
-        <div class="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div class="mt-6 flex items-center justify-between">
+            @php $allVisibleSelected = $items->isNotEmpty() && $items->pluck('id')->diff($selectedIds)->isEmpty(); @endphp
+            <button wire:click="selectAllVisible({{ $items->pluck('id')->implode(',') }})" class="flex items-center gap-1.5 rounded-xl border border-zinc-800 bg-zinc-900 px-3.5 py-1.5 text-xs font-bold text-zinc-300 transition hover:border-zinc-700 hover:bg-zinc-800">
+                @if($allVisibleSelected)
+                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                Tout désélectionner <span class="ml-0.5 opacity-60">({{ $items->count() }})</span>
+                @else
+                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                Tout sélectionner <span class="ml-0.5 opacity-60">({{ $items->count() }})</span>
+                @endif
+            </button>
+        </div>
+        <div class="mt-3 grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             @foreach ($items as $item)
             @include('livewire.partials.movie-card', ['item' => $item])
             @endforeach

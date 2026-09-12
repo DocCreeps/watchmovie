@@ -421,6 +421,45 @@ class TmdbClient
     }
 
     /**
+     * "Where to watch" providers for France (flatrate/rent/buy), from TMDB's own aggregated
+     * JustWatch data. Cached for 3 days like the other per-film lookups.
+     *
+     * @return array{link: ?string, flatrate: array<int, array{name: string, logo_url: ?string}>, rent: array, buy: array}
+     */
+    public function watchProviders(string $tmdbId): array
+    {
+        $empty = ['link' => null, 'flatrate' => [], 'rent' => [], 'buy' => []];
+        if (blank(config('services.tmdb.token'))) return $empty;
+
+        return Cache::remember("tmdb.providers.v1.{$tmdbId}", now()->addDays(3), function () use ($tmdbId, $empty) {
+            try {
+                $response = $this->client()->get("movie/{$tmdbId}/watch/providers", $this->withAuth([]));
+                if ($response->failed()) return $empty;
+
+                $fr = $response->json('results.FR');
+                if (! $fr) return $empty;
+
+                $mapProviders = fn(array $providers) => collect($providers)
+                    ->map(fn($p) => [
+                        'name' => $p['provider_name'],
+                        'logo_url' => isset($p['logo_path']) ? 'https://image.tmdb.org/t/p/w92' . $p['logo_path'] : null,
+                    ])
+                    ->values()
+                    ->all();
+
+                return [
+                    'link' => $fr['link'] ?? null,
+                    'flatrate' => $mapProviders($fr['flatrate'] ?? []),
+                    'rent' => $mapProviders($fr['rent'] ?? []),
+                    'buy' => $mapProviders($fr['buy'] ?? []),
+                ];
+            } catch (\Exception $e) {
+                return $empty;
+            }
+        });
+    }
+
+    /**
      * Picks the best trailer from a TMDB videos list: a YouTube "Trailer" (falling back to any
      * YouTube video if no official trailer exists), preferring French audio when $preferFrench
      * is true — otherwise just the first match, since this is already the no-French-available
