@@ -27,7 +27,6 @@
 - [Modèle de données](#modèle-de-données)
 - [Détails techniques](#détails-techniques)
 - [Limites connues](#limites-connues)
-- [Licence](#licence)
 
 ## Fonctionnalités
 
@@ -49,11 +48,12 @@
 - Un film déjà présent dans la liste personnelle est affiché en grisé, avec son statut actuel à la place des boutons d'ajout.
 - Ajout à la liste personnelle directement depuis une carte de résultat, avec un tag adapté à la date de sortie :
   - **+ Cinéma** si le film n'est pas encore sorti ou l'est depuis moins de 60 jours.
-  - **Déjà vue** / **+ Streaming** / **Revoir** au-delà de ce délai.
+  - **Déjà vue** / **+ Streaming** / **Revoir** au-delà de ce délai — une confirmation est demandée avant l'ajout direct en « Déjà vue » ou « Revoir ».
 - Depuis la modale de détails, ajout en un clic de **toute une saga TMDB** (ex. Star Wars, Toy Story) non encore présente dans la liste, chaque film étant classé cinéma/streaming selon sa propre date de sortie.
 
 ### 📋 Tableau de bord (`/tableau-de-bord`)
 - Liste personnelle des films ajoutés, filtrable par statut (**à voir**, **déjà vu**, **à revoir**, filtres cumulables) et par source (**cinéma**, **streaming**).
+- Grille principale scindée en deux sections distinctes, chacune avec son en-tête et son compteur : **À voir** puis **À revoir** (une section n'apparaît que si elle contient au moins un film).
 - Filtres additionnels par genre, réalisateur et studio (listes déroulantes, valeurs déduites de la liste), par année de sortie (min/max) et par recherche texte libre (titre ou note personnelle).
 - Filtre **🕸️ Oubliés** : films « à voir » ajoutés depuis plus de 3 mois (n'apparaît que s'il y en a au moins un).
 - Tri au choix : priorité, ajout récent, année, note TMDB, alphabétique.
@@ -64,7 +64,7 @@
 - **Sélection multiple** : case à cocher sur chaque carte (visible au survol/focus, ou en permanence si le film est déjà sélectionné) ; bouton **Tout sélectionner** au-dessus de la grille, qui devient **Tout désélectionner** une fois tous les films visibles cochés (agit comme un interrupteur).
 - Barre d'**actions groupées**, affichée dès qu'au moins un film est sélectionné : changement de statut, changement de priorité ou suppression appliqués à toute la sélection en un clic.
 - Bouton **🎲 Surprends-moi** : ouvre la fiche d'un film "à voir" pris au hasard dans la liste.
-- Les films marqués **déjà vus** sont retirés de la grille principale et regroupés dans une section repliable "Déjà vus" (masquée par défaut) ; ils réapparaissent dans la grille normale si on les sélectionne explicitement via le filtre de statut.
+- Les films marqués **déjà vus** sont retirés des grilles principales et regroupés dans une section repliable "Déjà vus" (masquée par défaut) ; ils réapparaissent dans la grille normale si on les sélectionne explicitement via le filtre de statut.
 
 ### 🎬 Sorties cinéma (`/a-venir`)
 - Sorties en salle en France sur les deux prochains mois (types de sortie « limitée » et « large » TMDB), regroupées par mois.
@@ -177,6 +177,7 @@ Table unique `watchlist_items` :
 - **Pagination studio parallélisée** : la première page détermine le nombre total de pages, les pages suivantes sont récupérées en une seule vague via `Http::pool` plutôt qu'en séquence.
 - **Bande-annonce** : récupérée via `append_to_response=credits,videos` sur l'endpoint `movie/{id}`, avec repli sur un second appel non filtré par langue si aucune vidéo française n'existe.
 - **Films similaires & sagas** : les recommandations TMDB (`movie/{id}/recommendations`, 6 films max) alimentent le bloc « Films similaires » ; l'ajout d'une saga entière (`collection/{id}`) ignore les films déjà présents dans la liste.
+- **Comptages du tableau de bord** : les compteurs par statut/source et le nombre de films « oubliés » sont calculés via des requêtes SQL groupées (`COUNT`/`GROUP BY`) plutôt qu'en chargeant toute la table en mémoire, pour rester performant même avec une liste volumineuse.
 
 ## Limites connues
 
