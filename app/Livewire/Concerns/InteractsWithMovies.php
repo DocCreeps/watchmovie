@@ -142,7 +142,8 @@ trait InteractsWithMovies
         return $date->diffInDays(now()) <= 60 ? 'in_cinema' : 'old';
     }
 
-    public function add(string $tmdbId, string $source, string $status = 'to_watch', TmdbClient $tmdb): void
+    
+    public function add(TmdbClient $tmdb, string $tmdbId, string $source, string $status = 'to_watch'): void
     {
         abort_unless(in_array($source, ['cinema', 'streaming'], true), 422);
         abort_unless(in_array($status, ['to_watch', 'watched', 'to_rewatch'], true), 422);
